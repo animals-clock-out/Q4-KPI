@@ -260,6 +260,7 @@ const TUNE = {
   refLife: 0.55,      // #REF! 儲存格被踩到後幾秒消失
   pieR: 0.68,         // 圓餅圖半徑
   pieSpeed: 2.0,      // 圓餅圖初速
+  pieWarnT: 1.6,      // v8.3：剛放出來的前幾秒閃大字提示
   // 老闆懷疑值（滿 1 被抓）
   susKey: 1.5,        // 按著任何操作鍵：每秒漲多少
   susMove: 1.4,       // 身體在動：每秒最多漲多少（× 動的程度）
@@ -496,7 +497,7 @@ const LEVEL = {
   stack: { faces: ['me', 'away', 'me'], chairs: [[113.4, 0], [114.4, 1], [115.4, 2]], wallX: 116.7, wallCols: 2, wallRows: 3, box: 0.7 }, // 疊椅子（[x, 底下幾個紙箱]）+ 紙箱牆
   cards: { x: 132.65, gap: 1.8, y: 4.2, hw: 0.32, hh: 0.44 }, // y：掛在站著時嘴巴的高度附近，走到對的卡前面按 X 就咬得到（重點是挑對卡，不是低頭技巧） // 卡片架：三張卡，只有一張是你的（v6 放大：使用者說太小咬不準、字看不清）
   punch: { x1: 133.1, x2: 134.7, slotX: 138.0, slotY: 5.8 }, // v7：卡片間距 1.15 → 1.8，打卡機、大門往後挪 0.8 m // 打卡機：v6 打卡口抬高，咬著卡跳起來、卡片碰到打卡口就打卡
-  bossOk: [[3, 8.5], [11.5, 15], [28, 31], [46.5, 50.5]], // v8.2：拿掉 120.5–124（保底巡視會拖到打卡區，彈窗疊成一堆；使用者選：老闆不在打卡區出現）。28–31 保留（拿掉的話老闆一場只剩 1 次），圓餅圖改成老闆走後 1 秒、玩家還在 36 m 前才滾
+  bossOk: [[3, 8.5], [11.5, 15], [28, 29.6], [46.5, 50.5]], // v8.3：拱門後那段縮到 29.6（再後面就是圓餅圖坡道，老闆腳步聲 2.6 秒內玩家會走進坡道太深）。 // v8.2：拿掉 120.5–124（保底巡視會拖到打卡區，彈窗疊成一堆；使用者選：老闆不在打卡區出現）。28–31 保留（拿掉的話老闆一場只剩 1 次），圓餅圖改成老闆走後 1 秒、玩家還在 36 m 前才滾
   // 只在平穩的平地出現（不在欄杆、長條圖、拱門、彈簧格旁邊）；座位區（92–100）前後 15 m 內不出現
   zones: [[-99, '起跑線'], [7, '第一根欄杆'], [14, '即時長條圖'], [22, '合併儲存格'], [30, '圓餅圖坡道'], [41, 'N/A 深淵'], [47, '下坡'], [59, '股市崩盤區'], [74, '未存檔區'], [93, '座位區'], [105, '紙箱牆'], [120, '打卡區']],
 };
@@ -786,7 +787,7 @@ function spawn(fromRespawn) {
   game.chase.x = cp.x - TUNE.chaseGap;
   if (game.boss.phase !== 'idle') game.boss.lastEnd = game.time; // 被抓後復活也算一次，至少隔 bossMinGap 才會再來
   game.boss.phase = 'idle'; game.boss.mode = ''; game.boss.next = Math.max(game.boss.next, game.time + rnd(6, 10));
-  game.pieCd = 0;
+  game.pieCd = 0; game.pieWarnAt = 0; game.pieShown = false;
   buildRefCells();
   buildProps();
   game.flags.ref = false; game.flags.stock = false; game.flags.seatDone = false; game.flags.cardHint = false;
@@ -801,7 +802,7 @@ function loadMode(mode, forceIds) {
   game.g = null; game.pie = null; game.refCells = []; game.refRails = [];
   buildWorld();
   Object.assign(game, { cp: 0, time: 0, started: false, falls: 0, deaths: 0, best: null, hlPending: null, hlPlay: null, graves: [], runSpots: {}, flags: {}, result: null, view: 'game', tip: null });
-  game.boss = { phase: 'idle', t: 0, next: rnd(TUNE.bossFirst[0], TUNE.bossFirst[1]), count: 0 };
+  game.boss = { phase: 'idle', t: 0, next: rnd(TUNE.bossFirst[0], TUNE.bossFirst[1]), count: 0, plan: bossPlan() };
   spawn(false);
   document.querySelectorAll('.tab[data-mode]').forEach(t => t.classList.toggle('on', t.dataset.mode === mode));
   document.getElementById('achTab').classList.remove('on');
@@ -1181,21 +1182,21 @@ function preStep() {
   if (g && game.started) {
     const x = g.torso.getPosition().x, z = LEVEL.pieZone;
     game.pieCd -= DT;
-    const bossQuiet = game.boss.phase === 'idle' && game.time - (game.boss.lastEnd ?? -99) > 1; // v8.2：2 → 1 秒（老闆走後太久才滾，玩家已經走過頭）。v7：老闆警告 / 盯人時（和離開後 2 秒）圓餅圖不滾，不然閃也死、不閃也死
-    if (!game.pie && bossQuiet && x > z.x1 && x < z.x2 - 4 && game.pieCd <= 0 && (game.state === 'run' || game.state === 'down')) {
-      if (true) { // v5.1：使用者決定坡道固定滾圓餅圖（後面已經有很多椅子了）；空椅子的程式先留著
-        const body = game.world.createBody({ type: 'dynamic', position: V(z.spawnX, z.spawnY + TUNE.pieR + 0.05), angularDamping: 0.05 });
-        body.createFixture(pl.Circle(TUNE.pieR), { density: 2.5, friction: 0.9, userData: { kind: 'pie', biteable: true } });
-        body.setLinearVelocity(V(-TUNE.pieSpeed, 0)); body.setAngularVelocity(3);
-        game.pie = { body, born: t, type: 'pie' };
-        say('pieWarn', 2.4, 1);
-      } else { // v4：空的辦公椅滑下來（有輪子，會翻滾）
-        const body = makeChair(z.spawnX, z.spawnY + 0.05, { wheels: true, damp: 0.02, spin: 0.1, solidBack: true, ud: { kind: 'pie', biteable: true } });
-        body.setLinearVelocity(V(-TUNE.pieSpeed * 1.2, 0));
-        game.pie = { body, born: t, type: 'chair' };
-        say('chairWarn', 2.4, 1);
-      }
+    // v8.3（使用者：老闆來過之後圓餅圖常常不出現、或在面前瞬間滾下來；圓餅圖一定要出現，而且要給反應時間）：
+    //   快走到坡道（28.5 m）就從坡頂放出來，前 TUNE.pieWarnT 秒閃大字提示；在坡道中段（約 34–35 m）碰到，離深淵還有距離（太晚放會變成跳完圓餅圖馬上要跳深淵）。
+    //   老闆在的時候先不放，老闆走了再放。每經過一次坡道至少滾一次（game.pieShown，回到坡道前面才重算）；
+    //   玩家剛好站在坡頂 2.2 m 內時等他離開再放，不會壓在頭上
+    const bossQuiet = game.boss.phase === 'idle' && game.time - (game.boss.lastEnd ?? -99) > 0.5;
+    const alive = game.state === 'run' || game.state === 'down';
+    if (x < z.x1 - 4) game.pieShown = false; // 回到放圓餅圖的地方前面（例如回存檔點）：重新算
+    if (!game.pie && game.pieCd <= 0 && alive && bossQuiet && x > z.x1 - 3 && ((x < z.x2 - 4) || (!game.pieShown && x < z.spawnX + 1)) && Math.abs(x - z.spawnX) > 2.2) {
+      const body = game.world.createBody({ type: 'dynamic', position: V(z.spawnX, z.spawnY + TUNE.pieR + 0.05), angularDamping: 0.05 });
+      body.createFixture(pl.Circle(TUNE.pieR), { density: 2.5, friction: 0.9, userData: { kind: 'pie', biteable: true } });
+      body.setLinearVelocity(V(-TUNE.pieSpeed, 0)); body.setAngularVelocity(TUNE.pieSpeed / TUNE.pieR);
+      game.pie = { body, born: t, type: 'pie' }; game.pieShown = true; game.pieWarnAt = t;
+      say('pieWarn', 2.4, 1);
     }
+    if (game.pieWarnAt && t - game.pieWarnAt > TUNE.pieWarnT) game.pieWarnAt = 0;
     if (game.pie) {
       const pp = game.pie.body.getPosition();
       const pv = game.pie.body.getLinearVelocity(); game.pie.still = Math.hypot(pv.x, pv.y) < 0.3 ? (game.pie.still || 0) + DT : 0;
@@ -1355,6 +1356,14 @@ function rules() {
 }
 
 // 老闆：腳步聲警告 → 盯著看（動就死）→ 離開
+// v8.3（使用者：老闆固定 2 次，但不要每場都在同樣的地方）：前半（開場 / 欄杆後）抽 1 段、後半（拱門後 / 深淵後）抽 1 段，段內位置也隨機
+//   測試時 TUNE.bossFirst 設成很大的數字 = 關掉老闆
+const bossTrig = ([a, c]) => ({ x: a + 0.3 + Math.random() * Math.max(0.2, c - a - 1.3), end: c });
+function bossPlan() {
+  if (TUNE.bossFirst[0] > 1e8) return [];
+  const Z = LEVEL.bossOk;
+  return [bossTrig(Z[Math.random() < 0.5 ? 0 : 1]), bossTrig(Z[3])]; // 拱門後（28–29.6）緊接圓餅圖坡道：老闆在那邊的話圓餅圖不是延後到深淵前、就是在面前瞬間滾下來，所以後半只用深淵後那段（段內位置隨機）
+}
 function bossTick() {
   const b = game.boss, g = game.g;
   const x = g.torso.getPosition().x;
@@ -1363,12 +1372,16 @@ function bossTick() {
     // 座位區：主管巡視（固定事件，每條命一次，過了就不會再來）
     const st = LEVEL.seat;
     if (!game.flags.seatDone && x > st.x1 && x < st.x2 && game.time - (b.lastEnd ?? -99) > 3) { /* 被抓復活後先喘口氣再來 */ b.phase = 'warn'; b.mode = 'seat'; b.t = 0; say('seatWarn', 3.2, 2); return false; }
-    const ok = LEVEL.bossOk.some(([a, c]) => x > a && x < c) && !(game.pie && Math.abs(game.pie.body.getPosition().x - x) < 15); // v8.2：圓餅圖已經滾到後面很遠就不算
-    // 保底（v8.2 使用者：一場大約 2 次，但不在打卡區）：到 28 m 還沒來過 → 補第 1 次；到最後一段平地（46.5 m）還不到 2 次 → 補第 2 次
-    const late = (x > LEVEL.bossOk[LEVEL.bossOk.length - 1][0] && (b.count || 0) < 2) || (x > 28 && x < 31 && !(b.count > 0));
-    // 任何兩次巡視（含主管）至少隔 bossMinGap 秒，不會剛走又來；保底那次放寬到 4 秒（老闆在 28 m 走後，快的人走到 46.5 m 只要 4–5 秒；加上 2.6 秒腳步聲，實際盯人至少隔 6.6 秒）
-    const gapOk = game.time - (b.lastEnd ?? -99) > (late ? 4 : TUNE.bossMinGap);
-    if ((game.time > b.next || late) && ok && gapOk) { b.phase = 'warn'; b.mode = ''; b.t = 0; b.count = (b.count || 0) + 1; say('bossWarn', 2.2, 2); }
+    const P = (b.plan || [])[b.count || 0];
+    if (P) {
+      const pieBusy = game.pieWarnAt || (game.pie && Math.abs(game.pie.body.getPosition().x - x) < 15);
+      const gapOk = game.time - (b.lastEnd ?? -99) > 4; // 兩次巡視（含主管）之間至少隔 4 秒＋2.6 秒腳步聲
+      if (x > P.x && x < P.end && gapOk && !pieBusy) { b.phase = 'warn'; b.mode = ''; b.t = 0; b.count = (b.count || 0) + 1; say('bossWarn', 2.2, 2); }
+      else if (x >= P.end) { // 錯過了（剛好圓餅圖在滾、或上一次剛走）：改到後面的下一段平地
+        const nx = LEVEL.bossOk.find(([a]) => a >= P.end);
+        b.plan[b.count || 0] = nx ? bossTrig(nx) : null;
+      }
+    }
     return false;
   }
   if (b.mode === 'seat') return seatTick(b, g);
@@ -1979,6 +1992,12 @@ function drawLevel(pose) {
   });
   // 圓餅圖
   if (pose.pie) { if (game.pie && game.pie.type === 'chair') drawChair(pose.pie, '#7F7F7F'); else drawPie(pose.pie); }
+  if (game.pieWarnAt && game.pie && !pose.recorded) { // v8.3：剛放出來時閃大字提示（跟著圓餅圖）
+    const pp = game.pie.body.getPosition();
+    const f = 'bold ' + Math.round(clamp(ppm * 0.45, 15, 22)) + 'px ' + FONT, tx = sx(pp.x), ty = sy(pp.y + TUNE.pieR + 0.9);
+    if (Math.sin(game.t * 14) > -0.3) txt('圓餅圖滾下來了！', clamp(tx, ROW_W + 110, W - 110), ty, f, '#C00000');
+    levelOcc.push({ x: tx - 110, y: ty - 16, w: 220, h: 32 });
+  }
   // 存檔點
   LEVEL.checkpoints.forEach((c, i) => {
     if (i === 0) return;
@@ -3231,6 +3250,10 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.08 - v7', items: [
+    '圓餅圖一定會滾下來，而且提早出現，上方會閃字提示，有時間反應',
+    '老闆出現的位置每場不一樣（一場一樣 2 次）',
+  ] },
   { v: '2026.11.08 - v6', items: [
     '股市反彈起飛不再飛太遠：會落在未存檔區前段；抓到反彈最後一瞬間按「跳」是完美時機，會多飛一段',
     '打卡一定要咬著卡跳起來刷，用走的不算',
