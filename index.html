@@ -156,6 +156,8 @@
     .status { gap: 10px; padding: 0 8px; }
     .status .right { gap: 10px; }
     .status .opt, .status .lbl { display: none; }
+    #app.big .status .zoom { display: none; } /* v8.1：窄畫面「130%」被擠到畫面外 */
+    #stState { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; } .status .right { flex: 0 0 auto; } /* 狀態字太長（重播中…）時縮狀態字，不要切掉右邊的「存檔點」 */
     .fbar .fx { padding: 0 6px; }
     .namebox { width: 48px; }
   }
@@ -202,8 +204,8 @@
     <div class="tab on" data-mode="normal">第 1 關 <span class="k">1</span></div>
     <div class="tab soon" id="lv2Tab" title="第 2 關製作中：新同事報到中，敬請期待">第 2 關 <span class="soonTag">製作中</span> <span class="k">2</span></div>
     <div class="tab" data-view="ach" id="achTab">成就 <span class="k">3</span></div>
-    <div class="tab" data-view="log" id="logTab">更新紀錄 <span class="k">4</span></div>
-    <div class="tab" data-view="skin" id="skinTab">造型 <span class="k">5</span></div>
+    <div class="tab" data-view="skin" id="skinTab">造型 <span class="k">4</span></div>
+    <div class="tab" data-view="log" id="logTab">更新紀錄 <span class="k">5</span></div>
     <div class="tab plus">+</div>
   </div>
   <div class="status">
@@ -2951,28 +2953,47 @@ function renderSkins() {
   const scr = pageScroll('skin'); ctx.save(); ctx.beginPath(); ctx.rect(portrait ? 0 : tx - 2, portrait ? ty - 1 : 0, portrait ? W : tw + 4, H); ctx.clip(); ctx.translate(0, -scr);
   // 造型表
   const fh = Math.round(26 * k), footH = Math.round(24 * k), rowH = clamp((H - ty - pad - fh - footH) / SKINS.length, IS_TOUCH ? 30 : 17, 30 * k), ff = Math.round(clamp(rowH * 0.56, 11, 16 * k));
-  const c1 = tx, c2 = tx + tw * 0.3, c3 = tx + tw * 0.8;
+  // v8.1（使用者：手機上字被切掉）：先量三欄需要多寬；放得下就一行一個造型（欄寬照內容分配），
+  //   放不下就改成兩行：上「造型名稱 ＋ 狀態」、下「解鎖條件」（太長就折行），不截斷任何字
+  const condOf = s => s.id === 'none' ? '—' : (a => a ? a.name + '：' + a.desc : '—')(skinAch(s.id));
+  const fB = 'bold ' + ff + 'px ' + FONT, fN = ff + 'px ' + FONT, mw = (t, f) => { ctx.font = f; return ctx.measureText(t).width; };
+  const needN = Math.max(mw('造型', fB), ...SKINS.map(s => mw(s.name, fB))) + 16, needC = Math.max(mw('解鎖條件', fB), ...SKINS.map(s => mw(condOf(s), fN))) + 16, needS = Math.max(mw('狀態', fB), mw('使用中', fB)) + 16;
+  const twoLine = needN + needC + needS > tw;
+  let c1 = tx, c2, c3;
+  if (!twoLine) { const ex = (tw - needN - needC - needS) / 3; c2 = c1 + needN + ex; c3 = c2 + needC + ex; }
+  else { c2 = tx; c3 = tx + tw; }
   ctx.fillStyle = C.green; ctx.fillRect(tx, ty, tw, fh);
-  [['造型', c1], ['解鎖條件', c2], ['狀態', c3]].forEach(([t, x]) => txt(t, x + 8, ty + fh / 2, 'bold ' + ff + 'px ' + FONT, '#fff', 'left'));
+  if (twoLine) { txt('造型 ／ 解鎖條件', tx + 8, ty + fh / 2, fB, '#fff', 'left'); txt('狀態', tx + tw - 8, ty + fh / 2, fB, '#fff', 'right'); }
+  else [['造型', c1], ['解鎖條件', c2], ['狀態', c3]].forEach(([t, x]) => txt(t, x + 8, ty + fh / 2, fB, '#fff', 'left'));
   game.skinRows = [];
+  let y = ty + fh;
   SKINS.forEach((s, i) => {
-    const y = ty + fh + i * rowH, ok = skinUnlocked(s.id), sel = i === game.skinSel, a = skinAch(s.id);
-    ctx.fillStyle = sel ? '#E2EFDA' : i % 2 ? '#F7F7F7' : '#fff'; ctx.fillRect(tx, y, tw, rowH);
-    const col = ok ? '#222' : '#A6A6A6', f = (sel ? 'bold ' : '') + ff + 'px ' + FONT;
-    txt(fitText(s.name, c2 - c1 - 12, f), c1 + 8, y + rowH / 2, f, sel && ok ? C.green : col, 'left');
-    const cond = s.id === 'none' ? '—' : a ? a.name + '：' + a.desc : '—';
-    txt(fitText(cond, c3 - c2 - 12, ff + 'px ' + FONT), c2 + 8, y + rowH / 2, ff + 'px ' + FONT, col, 'left');
+    const ok = skinUnlocked(s.id), sel = i === game.skinSel, cond = condOf(s);
+    const condL = twoLine ? wrapText(cond, tw - 16, fN) : null, h = twoLine ? Math.round(rowH * 0.5 + ff * 1.2 + condL.length * (ff + 4) + 4) : rowH;
+    ctx.fillStyle = sel ? '#E2EFDA' : i % 2 ? '#F7F7F7' : '#fff'; ctx.fillRect(tx, y, tw, h);
+    const col = ok ? '#222' : '#A6A6A6', f = (sel ? 'bold ' : '') + fN;
     const st = s.id === skin ? '使用中' : game.tryOn === s.id ? '試穿中' : ok ? '可換上' : '🔒';
-    txt(st, c3 + 8, y + rowH / 2, (s.id === skin || game.tryOn === s.id ? 'bold ' : '') + ff + 'px ' + FONT, s.id === skin ? C.green : game.tryOn === s.id ? '#9C5700' : col, 'left');
-    ctx.strokeStyle = '#E1E1E1'; ctx.beginPath(); ctx.moveTo(tx, y + rowH + 0.5); ctx.lineTo(tx + tw, y + rowH + 0.5); ctx.stroke();
-    game.skinRows.push({ i, x: tx, y, w: tw, h: rowH });
+    const stF = (s.id === skin || game.tryOn === s.id ? 'bold ' : '') + fN, stC = s.id === skin ? C.green : game.tryOn === s.id ? '#9C5700' : col;
+    const l1 = twoLine ? y + rowH * 0.25 + ff * 0.6 : y + rowH / 2;
+    if (twoLine) {
+      txt(fitText(s.name, tw - needS - 16, f), tx + 8, l1, f, sel && ok ? C.green : col, 'left');
+      txt(st, tx + tw - 8, l1, stF, stC, 'right');
+      condL.forEach((l, j) => txt(l, tx + 8, l1 + ff * 0.6 + 4 + (ff + 4) * (j + 0.5), fN, ok ? '#595959' : col, 'left'));
+    } else {
+      txt(s.name, c1 + 8, l1, f, sel && ok ? C.green : col, 'left');
+      txt(cond, c2 + 8, l1, fN, col, 'left');
+      txt(st, c3 + 8, l1, stF, stC, 'left');
+    }
+    ctx.strokeStyle = '#E1E1E1'; ctx.beginPath(); ctx.moveTo(tx, y + h + 0.5); ctx.lineTo(tx + tw, y + h + 0.5); ctx.stroke();
+    game.skinRows.push({ i, x: tx, y, w: tw, h }); y += h;
   });
-  const sy0 = ty + fh + game.skinSel * rowH;
-  if (game.skinEnsure) { game.skinEnsure = false; if (sy0 - scr < 0) game.pageScroll.skin = sy0 - 4; else if (sy0 + rowH - scr > H) game.pageScroll.skin = sy0 + rowH - H + 4; } ctx.strokeStyle = C.green; ctx.lineWidth = 3; ctx.strokeRect(tx + 1.5, sy0 + 1.5, tw - 3, rowH - 3); // 選取中：粗綠框
+  const selR = game.skinRows[game.skinSel] || game.skinRows[0], sy0 = selR.y, selH = selR.h;
+  if (game.skinEnsure) { game.skinEnsure = false; if (sy0 - scr < 0) game.pageScroll.skin = sy0 - 4; else if (sy0 + selH - scr > H) game.pageScroll.skin = sy0 + selH - H + 4; } ctx.strokeStyle = C.green; ctx.lineWidth = 3; ctx.strokeRect(tx + 1.5, sy0 + 1.5, tw - 3, selH - 3); // 選取中：粗綠框
   const got = SKINS.filter(s => skinUnlocked(s.id)).length - 1;
-  const foot = '已解鎖 ' + got + ' / ' + (SKINS.length - 1) + '　｜　' + (IS_TOUCH ? '點一下就換上；灰色的可以先試穿，比賽時不能用' : '↑ ↓ 或滑鼠點一下就換上；灰色的可以先試穿　｜　按 5 回到遊戲');
-  txt(fitText(foot, tw, Math.round(12 * k) + 'px ' + FONT), tx, ty + fh + SKINS.length * rowH + footH / 2 + 4, Math.round(12 * k) + 'px ' + FONT, C.green, 'left');
-  ctx.restore(); game.pageH.skin = ty + fh + SKINS.length * rowH + footH + pad + 10; drawScrollBar('skin');
+  const foot = '已解鎖 ' + got + ' / ' + (SKINS.length - 1) + '　｜　' + (IS_TOUCH ? '點一下就換上；灰色的可以先試穿，比賽時不能用' : '↑ ↓ 或滑鼠點一下就換上；灰色的可以先試穿　｜　按 4 回到遊戲');
+  const footF = Math.round(12 * k) + 'px ' + FONT; let fy = y + footH / 2 + 4;
+  for (const l of wrapText(foot, tw, footF)) { txt(l, tx, fy, footF, C.green, 'left'); fy += Math.round(12 * k) + 6; }
+  ctx.restore(); game.pageH.skin = fy + footH / 2 + pad; drawScrollBar('skin');
   drawToasts(toastLayout());
   document.getElementById('namebox').textContent = 'B' + (game.skinSel + 2);
   document.getElementById('formula').textContent = '目前造型：「' + vn + '」';
@@ -2994,7 +3015,7 @@ function drawReward() {
   ctx.fillStyle = '#FFFBEA'; ctx.strokeStyle = '#C55A11'; ctx.lineWidth = 3; roundRect(x, y, w, h, 12); ctx.fill(); ctx.stroke();
   const pop = 1 + 0.06 * Math.sin(Math.min(age, 1) * Math.PI * 3) * (1 - Math.min(age, 1));
   const n = game.rewards.length, more = n > 1 ? '（還有 ' + (n - 1) + ' 個）' : '';
-  const foot = (sk ? (IS_TOUCH ? '到「造型」分頁換上・' : '到「造型」分頁（5）換上・') : '') + (IS_TOUCH ? '點一下' : '任意鍵') + (n > 1 ? '換下一個' + more : '看成績');
+  const foot = (sk ? (IS_TOUCH ? '到「造型」分頁換上・' : '到「造型」分頁（4）換上・') : '') + (IS_TOUCH ? '點一下' : '任意鍵') + (n > 1 ? '換下一個' + more : '看成績');
   let tx = x + w / 2, tw = w - 24; // 文字欄的中心、寬度
   if (wide) {
     const pw = Math.min(h - 16, w * 0.42); // 左邊預覽（正方形）
@@ -3021,35 +3042,69 @@ function renderAchievements() {
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, W, H);
   // v7（使用者：大螢幕時空白太多、字太小）：列高和字跟著畫面放大；表格最寬 1200，其餘畫成空白儲存格
   const rowH = Math.round(clamp((H - 70) / (ACH.length + 3), IS_TOUCH ? 30 : 22, 40)), ff = Math.round(clamp(rowH * 0.55, 12, 20)), tw = Math.min(W - ROW_W, 1200);
-  const cols = [ROW_W, ROW_W + rowH * 1.4, ROW_W + Math.max(150, tw * 0.27), ROW_W + Math.max(330, tw * 0.72), ROW_W + tw];
+  // v8.1：欄寬照內容分配；三欄放不下（會被截成「…」）就改成上下兩行（narrow）
+  const skName = a => a.skin ? SKINS.find(s => s.id === a.skin).name : '—', mw = (t, f) => { ctx.font = f; return ctx.measureText(t).width; };
+  const fB = 'bold ' + ff + 'px ' + FONT, fN = ff + 'px ' + FONT, c0 = ROW_W + rowH * 1.4;
+  const need = [Math.max(mw('成就', fB), ...ACH.map(a => mw(a.name, fB))), Math.max(mw('條件', fB), ...ACH.map(a => mw(a.desc, fN))), Math.max(mw('獎勵（造型）', fB), ...ACH.map(a => mw(skName(a), fN)))].map(w => w + 18);
+  const ex = (ROW_W + tw - c0 - need[0] - need[1] - need[2]) / 3;
+  const cols = [ROW_W, c0, c0 + need[0] + ex, c0 + need[0] + need[1] + ex * 2, ROW_W + tw];
   ctx.strokeStyle = '#EDEDED'; ctx.lineWidth = 1; ctx.beginPath(); for (let x = ROW_W + tw; x < W; x += CELL_W) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); } for (let y = 0; y < H; y += rowH) { ctx.moveTo(ROW_W, y + 0.5); ctx.lineTo(W, y + 0.5); } ctx.stroke();
   ctx.fillStyle = '#F2F2F2'; ctx.fillRect(0, 0, W, rowH); ctx.fillRect(0, 0, ROW_W, H);
   const heads = ['', '成就', '條件', '獎勵（造型）'];
   const got = ACH.filter(a => achieved[a.id]).length;
+  // v8.1（使用者手機直式回報：右邊「獎勵」欄被切掉、鎖住的看不到條件）：窄畫面每個成就改成上下兩行
+  //   上：名稱 ＋ 右邊獎勵造型；下：條件（太長就折行）。不用左右捲就看得完
+  const narrow = ex < 0, f2 = Math.round(ff * 0.85) + 'px ' + FONT, x1 = cols[1] + 8, right = ROW_W + tw - 16; // 右邊留空間給捲軸
+  const rows = []; let ry = rowH;
+  ACH.forEach(a => {
+    let h = rowH, desc = null, skLine = false;
+    if (narrow) {
+      desc = wrapText(a.desc, right - x1, f2);
+      // 獎勵放名稱右邊；名稱 ＋ 獎勵放不下（造型名稱長）就自己一行放最下面，不截斷
+      if (a.skin) { ctx.font = 'bold ' + ff + 'px ' + FONT; const nw = ctx.measureText(achieved[a.id] ? a.name : '？？？').width; ctx.font = f2; skLine = nw + ctx.measureText('🎁 ' + SKINS.find(s => s.id === a.skin).name).width + 14 > right - x1; }
+      h = Math.round(rowH * 0.5 + ff * 1.25 + (desc.length + (skLine ? 1 : 0)) * (ff + 4) + 6);
+    }
+    rows.push({ y: ry, h, desc, skLine }); ry += h;
+  });
+  const tableB = ry;
   const scr = pageScroll('ach'); ctx.save(); ctx.translate(0, -scr); // v8：內容太長可以上下捲（表頭固定在最上面）
   ACH.forEach((a, i) => {
-    const y = rowH * (i + 1);
+    const { y, h, desc, skLine } = rows[i];
     const ok = !!achieved[a.id];
-    if (ok) { ctx.fillStyle = '#E2EFDA'; ctx.fillRect(ROW_W, y, tw, rowH); }
+    ctx.fillStyle = ok ? '#E2EFDA' : '#fff'; ctx.fillRect(ROW_W, y, tw, h); // 白底也要填：背景格線是固定的，捲動後會穿過沒解鎖的列
+    const sk = skName(a);
+    if (narrow) {
+      const l1 = y + rowH * 0.25 + ff * 0.6;
+      txt(String(i + 2), ROW_W / 2, l1, Math.round(ff * 0.85) + 'px Arial, sans-serif', '#666');
+      txt(ok ? '✔' : '🔒', (cols[0] + cols[1]) / 2, l1, ff + 'px ' + FONT, ok ? C.green : '#999');
+      let skW = 0; const skT = a.skin ? '🎁 ' + sk : '', skC = ok ? '#C55A11' : '#999', lineY = j => l1 + ff * 0.65 + 4 + (ff + 4) * (j + 0.5);
+      if (skT && !skLine) { ctx.font = f2; skW = ctx.measureText(skT).width; txt(skT, right, l1, f2, skC, 'right'); }
+      txt(fitText(ok ? a.name : '？？？', right - x1 - skW - 10, 'bold ' + ff + 'px ' + FONT), x1, l1, (ok ? 'bold ' : '') + ff + 'px ' + FONT, ok ? '#222' : '#999', 'left');
+      desc.forEach((l, j) => txt(l, x1, lineY(j), f2, ok ? '#404040' : '#999', 'left'));
+      if (skT && skLine) txt(fitText(skT, right - x1, f2), right, lineY(desc.length), f2, skC, 'right');
+      return;
+    }
     txt(String(i + 2), ROW_W / 2, y + rowH / 2, Math.round(ff * 0.85) + 'px Arial, sans-serif', '#666');
     txt(ok ? '✔' : '🔒', (cols[0] + cols[1]) / 2, y + rowH / 2, ff + 'px ' + FONT, ok ? C.green : '#999');
-    txt(fitText(ok ? a.name : '？？？', cols[2] - cols[1] - 12, 'bold ' + ff + 'px ' + FONT), cols[1] + 8, y + rowH / 2, (ok ? 'bold ' : '') + ff + 'px ' + FONT, ok ? '#222' : '#999', 'left');
-    if (W > 520) txt(fitText(a.desc, cols[3] - cols[2] - 12, ff + 'px ' + FONT), cols[2] + 8, y + rowH / 2, ff + 'px ' + FONT, ok ? '#404040' : '#999', 'left');
-    const sk = a.skin ? SKINS.find(s => s.id === a.skin).name : '—';
-    txt(fitText(W > 520 ? sk : (ok ? a.desc : sk), cols[4] - (W > 520 ? cols[3] : cols[2]) - 12, ff + 'px ' + FONT), (W > 520 ? cols[3] : cols[2]) + 8, y + rowH / 2, ff + 'px ' + FONT, ok ? '#C55A11' : '#999', 'left');
+    txt(ok ? a.name : '？？？', cols[1] + 8, y + rowH / 2, (ok ? 'bold ' : '') + ff + 'px ' + FONT, ok ? '#222' : '#999', 'left');
+    txt(a.desc, cols[2] + 8, y + rowH / 2, ff + 'px ' + FONT, ok ? '#404040' : '#999', 'left');
+    txt(sk, cols[3] + 8, y + rowH / 2, ff + 'px ' + FONT, ok ? '#C55A11' : '#999', 'left');
   });
+  const vcols = narrow ? [cols[0], cols[1], ROW_W + tw] : cols; // 窄畫面只有圖示 / 內容兩欄
   ctx.strokeStyle = '#D9D9D9'; ctx.lineWidth = 1; ctx.beginPath();
-  for (let i = 0; i <= ACH.length + 1; i++) { ctx.moveTo(ROW_W, rowH * i + 0.5); ctx.lineTo(ROW_W + tw, rowH * i + 0.5); }
-  cols.forEach((x, i) => { if (i === 2 && W <= 520) return; ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, rowH * (ACH.length + 1)); });
+  ctx.moveTo(ROW_W, rowH + 0.5); ctx.lineTo(ROW_W + tw, rowH + 0.5);
+  for (const r of rows) { ctx.moveTo(0, r.y + r.h + 0.5); ctx.lineTo(ROW_W + tw, r.y + r.h + 0.5); }
+  vcols.forEach(x => { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, tableB); });
   ctx.stroke();
-  const y0 = rowH * (ACH.length + 1) + rowH * 0.7;
+  const y0 = tableB + rowH * 0.7;
   const life = ['pit', 'ref', 'ko', 'pie', 'chase', 'boss'].map(k => KIND_LABEL[k].replace(/^掉進 /, '') + ' ' + (stats[k] || 0)).join('　');
-  const fw = W - ROW_W - 20, f1 = 'bold ' + ff + 'px ' + FONT, f2 = Math.round(ff * 0.85) + 'px ' + FONT; // v8：手機直式太長會被切掉 → 折行
+  const fw = W - ROW_W - 20, f1 = 'bold ' + ff + 'px ' + FONT; // v8：手機直式太長會被切掉 → 折行
   let fy = y0; for (const l of wrapText('已解鎖 ' + got + ' / ' + ACH.length + '　｜　目前造型：' + SKINS.find(s => s.id === skin).name + '（到「造型」分頁換）　｜　' + (IS_TOUCH ? '點「第 1 關」回到遊戲' : '按 3 回到遊戲'), fw, f1)) { txt(l, ROW_W + 10, fy, f1, C.green, 'left'); fy += ff + 8; }
   for (const l of wrapText('生涯統計：' + life, fw, f2)) { txt(l, ROW_W + 10, fy, f2, '#7F7F7F', 'left'); fy += ff + 6; }
   ctx.restore(); game.pageH.ach = fy + rowH * 0.6;
-  ctx.fillStyle = '#F2F2F2'; ctx.fillRect(0, 0, W, rowH); ctx.strokeStyle = '#D9D9D9'; ctx.beginPath(); ctx.moveTo(0, rowH + 0.5); ctx.lineTo(W, rowH + 0.5); cols.forEach((x, i) => { if (i === 2 && W <= 520) return; ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, rowH); }); ctx.stroke();
-  heads.forEach((h, i) => { if (i && !(i === 2 && W <= 520)) txt(h, cols[i] + 8, rowH / 2, 'bold ' + ff + 'px ' + FONT, '#404040', 'left'); });
+  ctx.fillStyle = '#F2F2F2'; ctx.fillRect(0, 0, W, rowH); ctx.strokeStyle = '#D9D9D9'; ctx.beginPath(); ctx.moveTo(0, rowH + 0.5); ctx.lineTo(W, rowH + 0.5); vcols.forEach(x => { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, rowH); }); ctx.stroke();
+  if (narrow) { txt('成就 ／ 條件', x1, rowH / 2, 'bold ' + ff + 'px ' + FONT, '#404040', 'left'); txt('獎勵', right, rowH / 2, 'bold ' + ff + 'px ' + FONT, '#404040', 'right'); }
+  else heads.forEach((h, i) => { if (i) txt(h, cols[i] + 8, rowH / 2, 'bold ' + ff + 'px ' + FONT, '#404040', 'left'); });
   drawScrollBar('ach');
   drawToasts(toastLayout());
   document.getElementById('namebox').textContent = 'A1';
@@ -3057,8 +3112,14 @@ function renderAchievements() {
   document.getElementById('stState').textContent = '就緒';
 }
 
-// 更新紀錄工作表（按 4）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
+// 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.08 - v5', items: [
+    '新網址：animals-clock-out.github.io/Q4-KPI（舊網址已停用）',
+    '分頁順序改成 成就 3、造型 4、更新紀錄 5（更新紀錄放最後）',
+    '手機直式：成就頁、造型頁每一筆改成兩行，獎勵和條件都看得到，不會被切掉',
+    '手機直式：下方狀態列不會再被擠出畫面',
+  ] },
   { v: '2026.11.08 - v4', items: [
     '手機：分頁列可以左右拖曳（點得到「造型」了）；成就、造型、更新紀錄可以上下捲動（電腦用滾輪或觸控板）',
     '造型頁捲動時，預覽固定不動，點了就看得到穿上的樣子',
@@ -3168,8 +3229,8 @@ function renderLog() {
     });
   });
   ctx.beginPath(); ctx.moveTo(c2 + 0.5, 0); ctx.lineTo(c2 + 0.5, y); ctx.stroke();
-  txt(fitText((IS_TOUCH ? '點「第 1 關」回到遊戲' : '按 4 回到遊戲') + '　｜　有新版本時，重新整理網頁就會更新', W - ROW_W - 20, '12px ' + FONT), ROW_W + 10, y + rowH, '12px ' + FONT, C.green, 'left');
-  ctx.restore(); game.pageH.log = y + rowH * 2;
+  let ly = y + rowH; for (const l of wrapText((IS_TOUCH ? '點「第 1 關」回到遊戲' : '按 5 回到遊戲') + '　｜　有新版本時，重新整理網頁就會更新', W - ROW_W - 20, '12px ' + FONT)) { txt(l, ROW_W + 10, ly, '12px ' + FONT, C.green, 'left'); ly += 18; }
+  ctx.restore(); game.pageH.log = ly + rowH;
   ctx.fillStyle = '#F2F2F2'; ctx.fillRect(0, 0, W, rowH); ctx.strokeStyle = '#E1E1E1'; ctx.beginPath(); ctx.moveTo(0, rowH + 0.5); ctx.lineTo(W, rowH + 0.5); ctx.moveTo(c2 + 0.5, 0); ctx.lineTo(c2 + 0.5, rowH); ctx.stroke();
   txt('版本', c1 + 8, rowH / 2, 'bold 12px ' + FONT, '#404040', 'left');
   txt('更新內容', c2 + 8, rowH / 2, 'bold 12px ' + FONT, '#404040', 'left');
@@ -3247,7 +3308,7 @@ function setBite(on) {
   });
 }
 const RHOLD = 0.5; // 按住 R 幾秒才回存檔點（避免誤觸）
-// 切換工作表：成就（3）、更新紀錄（4）；再按一次回遊戲
+// 切換工作表：成就（3）、造型（4）、更新紀錄（5）；再按一次回遊戲
 function toggleView(v) {
   game.view = game.view === v ? 'game' : v;
   document.getElementById('achTab').classList.toggle('on', game.view === 'ach');
@@ -3277,8 +3338,8 @@ function pressKey(code) {
   keys[code] = true;
   setKeyUi(code, true);
   if (code === 'Digit3') toggleView('ach');
-  if (code === 'Digit4') toggleView('log');
-  if (code === 'Digit5') toggleView('skin');
+  if (code === 'Digit4') toggleView('skin');
+  if (code === 'Digit5') toggleView('log');
   if (code === 'Digit1') { if (game.view !== 'game') toggleView(game.view); else loadMode('normal'); } // v8：從其他分頁按 1 = 回到遊戲接著跑
   if (code === 'Digit2') lv2Teaser();
   if (game.view !== 'game') return;
