@@ -268,8 +268,12 @@ const TUNE = {
   susDecay: 0.25,     // 站穩時每秒退多少
   bossWarn: 2.6,      // 老闆腳步聲警告幾秒（v1：1.6 → 2.6，不常玩遊戲的人來不及反應）
   // 股市反彈起飛（v1 正式化的隱藏捷徑）：踩在正在反彈的柱子上跳
-  launchVy: 9,        // 額外往上的速度（實測：多半能飛過 #REF! 區，落在 88–99 m）
-  launchVx: 7,        // 額外往前的速度
+  // v8.2（使用者：飛太遠，跳過椅子、整個未存檔區）：改成「瞄準落點」。起飛時直接設定速度：往上固定 launchVy（最高約 8–9 m），
+  //   往前速度用落點反推（從哪根柱子起飛都落在差不多的地方）。反彈最後一瞬間（柱子快升到頂）按 ↑ = 完美時機，多飛一點
+  launchVy: 12.5,     // 起飛時往上的總速度
+  launchX: 79.5,      // 一般起飛：瞄準點（實測按住 → 落在 76–79.5，平均 77.7；未存檔區前半，小洞 81–82 前；大洞還是要自己跳）
+  launchPerfectX: 85, // 完美時機：瞄準點（實測落在 81–85，平均 83；飛過小洞、落在大洞前）
+  launchLandY: 2.6,   // 腳碰到地面時的身體高度（算飛行時間用；實測最高約 7–9.7 m）
   springVy: 8.5,      // 彈簧格：額外往上的速度（v1.1：6 → 8.5，原本只有全速走、一踩就跳才過得去）
   springVx: 4.5,      // 彈簧格：起跳後往前速度至少這麼多（不管原本走多快、甚至停著）
   springDelay: 0.3,
@@ -492,7 +496,8 @@ const LEVEL = {
   stack: { faces: ['me', 'away', 'me'], chairs: [[113.4, 0], [114.4, 1], [115.4, 2]], wallX: 116.7, wallCols: 2, wallRows: 3, box: 0.7 }, // 疊椅子（[x, 底下幾個紙箱]）+ 紙箱牆
   cards: { x: 132.65, gap: 1.8, y: 4.2, hw: 0.32, hh: 0.44 }, // y：掛在站著時嘴巴的高度附近，走到對的卡前面按 X 就咬得到（重點是挑對卡，不是低頭技巧） // 卡片架：三張卡，只有一張是你的（v6 放大：使用者說太小咬不準、字看不清）
   punch: { x1: 133.1, x2: 134.7, slotX: 138.0, slotY: 5.8 }, // v7：卡片間距 1.15 → 1.8，打卡機、大門往後挪 0.8 m // 打卡機：v6 打卡口抬高，咬著卡跳起來、卡片碰到打卡口就打卡
-  bossOk: [[3, 8.5], [11.5, 15], [28, 31], [46.5, 50.5], [120.5, 124]], // 只在平穩的平地出現（不在欄杆、長條圖、拱門、彈簧格旁邊）；座位區（92–100）前後 15 m 內不出現
+  bossOk: [[3, 8.5], [11.5, 15], [28, 31], [46.5, 50.5]], // v8.2：拿掉 120.5–124（保底巡視會拖到打卡區，彈窗疊成一堆；使用者選：老闆不在打卡區出現）。28–31 保留（拿掉的話老闆一場只剩 1 次），圓餅圖改成老闆走後 1 秒、玩家還在 36 m 前才滾
+  // 只在平穩的平地出現（不在欄杆、長條圖、拱門、彈簧格旁邊）；座位區（92–100）前後 15 m 內不出現
   zones: [[-99, '起跑線'], [7, '第一根欄杆'], [14, '即時長條圖'], [22, '合併儲存格'], [30, '圓餅圖坡道'], [41, 'N/A 深淵'], [47, '下坡'], [59, '股市崩盤區'], [74, '未存檔區'], [93, '座位區'], [105, '紙箱牆'], [120, '打卡區']],
 };
 const zoneAt = x => { let z = LEVEL.zones[0][1]; for (const [zx, n] of LEVEL.zones) if (x >= zx) z = n; return z; };
@@ -501,7 +506,7 @@ const zoneAt = x => { let z = LEVEL.zones[0][1]; for (const [zx, n] of LEVEL.zon
 const ACH = [
   { id: 'first_finish', name: '新人報到', desc: '第一次完賽', skin: 'badge' },
   { id: 'no_fall', name: '完美報表', desc: '零摔倒、零陣亡完賽', skin: 'tie' },
-  { id: 'fast', name: '準時下班', desc: '50 秒內完賽', skin: 'crown' },
+  { id: 'fast', name: '光速下班', desc: '50 秒內完賽', skin: 'crown' }, // v8.2：原本跟打卡成就同名
   { id: 'pit10', name: 'N/A 常客', desc: '累計掉進深淵 10 次', skin: 'hardhat' },
   { id: 'boss3', name: '上班偷玩慣犯', desc: '被老闆抓到 3 次', skin: 'shades' },
   { id: 'actor5', name: '影帝', desc: '在老闆面前成功裝沒事 5 次', skin: 'suit' },
@@ -515,11 +520,11 @@ const ACH = [
   { id: 'ledge', name: '極限救援', desc: '掉進深淵時咬住崖邊，盪上來', skin: 'scarf' },
   { id: 'punch', name: '準時下班', desc: '拿自己的卡打下班卡', skin: 'sticky' },
   { id: 'proxy', name: '代打卡', desc: '拿別人的卡去打卡', skin: 'box' },
-  { id: 'ride', name: '辦公室椅子', desc: '踩著辦公室椅子滑過未存檔區' },
+  { id: 'ride', name: '辦公室椅子', desc: '踩著辦公室椅子滑過未存檔區', skin: 'racer' },
   { id: 'overArch', name: '越級報告', desc: '用彈簧格從合併儲存格上方飛過', skin: 'phones' },
-  { id: 'launch', name: '漲停板', desc: '股市反彈時起飛，直接飛過未存檔區', skin: 'party' },
-  { id: 'sanjie', name: '三節獎金全拿', desc: '一場拿到春節、端午、中秋三包獎金' },
-  { id: 'yearend', name: '年終入袋', desc: '在主管座位區拿走年終獎金' },
+  { id: 'launch', name: '漲停板', desc: '股市反彈時起飛，平安落地', skin: 'party' },
+  { id: 'sanjie', name: '三節獎金全拿', desc: '一場拿到春節、端午、中秋三包獎金', skin: 'jiejie' },
+  { id: 'yearend', name: '年終入袋', desc: '在主管座位區拿走年終獎金', skin: 'tycoon' },
   { id: 'fall10', name: '勵志哥', desc: '一場摔倒 + 陣亡 10 次以上還完賽', skin: 'burnout' },
 ];
 const SKINS = [
@@ -528,6 +533,7 @@ const SKINS = [
 { id: 'sticky', name: '便利貼人生' }, { id: 'excel', name: '完美偽裝（Excel 綠）' }, { id: 'zebra', name: '外包斑馬' },
   { id: 'box', name: '已離職紙箱' }, { id: 'party', name: '同事慶生' }, { id: 'phones', name: '勿擾模式' }, { id: 'scarf', name: '冷氣太強圍巾' }, { id: 'coffee', name: '咖啡續命' },
   { id: 'burnout', name: '燃燒殆盡' }, { id: 'mask', name: '午休面膜' }, { id: 'zoomfit', name: '視訊會議穿搭' }, { id: 'wifi', name: '訊號滿格' },
+  { id: 'racer', name: '辦公椅賽車手' }, { id: 'jiejie', name: '三節禮盒' }, { id: 'tycoon', name: '年終暴發戶' }, // v8.2：原本沒有造型的 3 個成就
 ];
 const skinUnlocked = id => id === 'none' || ACH.some(a => a.skin === id && achieved[a.id]);
 let skin = store.get('giraffe_skin') || 'none';
@@ -889,7 +895,7 @@ function control() {
       if (hit.f.getBody().isDynamic() && comp > ((g.blockT || 0) > 1.5 ? 1.1 : TUNE.stepMax)) continue;
       support++;
       if (hit.u.ref !== undefined) { const c = game.refCells[hit.u.ref]; if (c && c.touched < 0) c.touched = game.t; }
-      if (hit.u.stock !== undefined) { const sp = game.stock[hit.u.stock]; if (sp && sp.launchable) onLaunch = true; }
+      if (hit.u.stock !== undefined) { const sp = game.stock[hit.u.stock]; if (sp && sp.launchable) onLaunch = sp.perfect ? 2 : Math.max(onLaunch || 0, 1); }
       if (LEVEL.springs.some(sp => Math.abs(hip.x - sp.x) < sp.w / 2 + 0.3) && hit.d < restH + 0.1) onSpring = true; // 彈簧格跟地面齊平（不做碰撞體，免得絆腳），用位置判斷
       const vy = g.torso.getLinearVelocityFromWorldPoint(hip).y;
       const Fs = clamp(kS * comp - kD * vy, 0, g.mass * grav * 3);
@@ -946,6 +952,7 @@ function control() {
   }
   g.riding = !!rideBody; if (!rideBody) g.rideRef = null;
   if (onLaunch) g.launchOkAt = game.t; // 腳下的股市柱子正要 / 正在反彈（起飛用）
+  if (onLaunch === 2) g.launchPerfectAt = game.t; // 反彈最後一瞬間（完美時機）
   if (onSpring) g.springOkAt = game.t;
   // 加速度（平滑過）：重心系統用
   const axRaw = support ? clamp((vx0 - g.vxPrev) / DT, -25, 25) : 0;
@@ -1044,15 +1051,21 @@ function control() {
   // 跳（容許一點點提早 / 晚按）
   g.jumpCd -= DT;
   if (support >= 1) g.lastGround = game.t;
+  if (support >= 1 && g.jumpAt != null && !g.jumpLandAt && game.t - g.jumpAt > 0.15) g.jumpLandAt = game.t; // v8.1：跳起來後第一次落地的時間（打卡要「還在空中」才算）
   if (keys.KeyW && !keys._wUsed) { keys._wUsed = true; g.jumpAsk = game.t; }
   if (game.t - (g.jumpAsk ?? -9) < 0.18 && game.t - (g.lastGround ?? -9) < 0.18 && g.jumpCd <= 0 && live) {
-    g.jumpAsk = -9; g.jumpCd = 0.5; g.lastGround = -9; g.jumpAt = game.t;
+    g.jumpAsk = -9; g.jumpCd = 0.5; g.lastGround = -9; g.jumpAt = game.t; g.jumpLandAt = 0;
     const jv = Math.sqrt(grav) * 1.75;
     // v1 隱藏捷徑：股市反彈時（腳下柱子正在往上衝）跳 → 漲停板起飛
     const launch = game.t - (g.launchOkAt ?? -9) < 0.12;
-    const ex = launch ? TUNE.launchVy : 0, exX = launch ? TUNE.launchVx : 0;
-    g.parts.forEach(b => { const v = b.getLinearVelocity(); b.setLinearVelocity(V(v.x + dir * 1.2 + exX, v.y + jv + ex)); });
-    if (launch) { g.launchAt = game.t; say('launch', 2.6, 1); statInc('launches'); }
+    if (launch) {
+      const perfect = game.t - (g.launchPerfectAt ?? -9) < 0.12, tp = g.torso.getPosition(), vy0 = TUNE.launchVy, G0 = Math.abs(grav);
+      const T = (vy0 + Math.sqrt(vy0 * vy0 + 2 * G0 * Math.max(0, tp.y - TUNE.launchLandY))) / G0; // 飛行時間
+      const vx0 = clamp(((perfect ? TUNE.launchPerfectX : TUNE.launchX) - tp.x) / T, 2.5, 12);
+      g.parts.forEach(b => b.setLinearVelocity(V(vx0, vy0)));
+      g.launchAt = game.t; g.launchPerfect = perfect; say('launch', 2.6, 1); statInc('launches');
+      if (perfect) { game.launchPerfectFx = game.t; statInc('launchPerfect'); }
+    } else g.parts.forEach(b => { const v = b.getLinearVelocity(); b.setLinearVelocity(V(v.x + dir * 1.2, v.y + jv)); });
     // v1 拱門高路線：彈簧格
     if (!launch && game.t - (g.springOkAt ?? -9) < 0.12) {
       // 先幾乎垂直往上彈（3 m 長脖子的頭本來就在前面，一開始就往前衝會撞到拱門側面），升到高處再往前推
@@ -1155,6 +1168,7 @@ function preStep() {
     const q = p - 3.4 - i * 0.07;
     const crash = q < 0 ? 0 : q < 0.3 ? q / 0.3 : q < 1.0 ? 1 : q < 1.45 ? 1 - (q - 1.0) / 0.45 : 0;
     s.launchable = q >= 0.75 && q < 1.45;
+    s.perfect = q >= 1.22 && q < 1.45; // v8.2：反彈最後約 0.2 秒（柱子快升到頂）= 完美時機
     const top = 0.55 * Math.sin(t * 1.7 + i * 0.75) - 2.3 * crash;
     s.falling = crash > 0.05 && q < 1.0;
     const vy = clamp((top - 4 - s.body.getPosition().y) / DT, -14, 14);
@@ -1167,8 +1181,8 @@ function preStep() {
   if (g && game.started) {
     const x = g.torso.getPosition().x, z = LEVEL.pieZone;
     game.pieCd -= DT;
-    const bossQuiet = game.boss.phase === 'idle' && game.time - (game.boss.lastEnd ?? -99) > 2; // v7：老闆警告 / 盯人時（和離開後 2 秒）圓餅圖不滾，不然閃也死、不閃也死
-    if (!game.pie && bossQuiet && x > z.x1 && x < z.x2 - 1 && game.pieCd <= 0 && (game.state === 'run' || game.state === 'down')) {
+    const bossQuiet = game.boss.phase === 'idle' && game.time - (game.boss.lastEnd ?? -99) > 1; // v8.2：2 → 1 秒（老闆走後太久才滾，玩家已經走過頭）。v7：老闆警告 / 盯人時（和離開後 2 秒）圓餅圖不滾，不然閃也死、不閃也死
+    if (!game.pie && bossQuiet && x > z.x1 && x < z.x2 - 4 && game.pieCd <= 0 && (game.state === 'run' || game.state === 'down')) {
       if (true) { // v5.1：使用者決定坡道固定滾圓餅圖（後面已經有很多椅子了）；空椅子的程式先留著
         const body = game.world.createBody({ type: 'dynamic', position: V(z.spawnX, z.spawnY + TUNE.pieR + 0.05), angularDamping: 0.05 });
         body.createFixture(pl.Circle(TUNE.pieR), { density: 2.5, friction: 0.9, userData: { kind: 'pie', biteable: true } });
@@ -1240,7 +1254,7 @@ function rules() {
   // 彈簧格飛過拱門（沒碰到拱門下方）
   if (g.springFlyAt && feet && game.t - g.springFlyAt > 0.3) { if (p.x > LEVEL.arch.x2 && alive) award('overArch'); g.springFlyAt = 0; }
   // 漲停板起飛：起飛後直接飛過 #REF! 區
-  if (g.launchAt && feet && game.t - g.launchAt > 0.3) { if (p.x > LEVEL.ref.x1 + 3 && alive) award('launch'); g.launchAt = 0; }
+  if (g.launchAt && feet && game.t - g.launchAt > 0.3) { if (p.x > LEVEL.stock.x2 && alive) award('launch'); g.launchAt = 0; } // v8.2：起飛變近，平安落地就算
   // 人猿泰山：咬樹枝放手後成功落在深淵對岸
   if (g.tarzanAt && game.t - g.tarzanAt < 4 && p.x > LEVEL.pit.x2 + 0.5 && feet && alive) { g.tarzanAt = 0; award('tarzan'); }
   // 終點
@@ -1258,8 +1272,12 @@ function rules() {
   // v6：咬著卡跳起來，卡片碰到抬高的打卡口就打卡（不用停住）
   const pz = LEVEL.punch, hp2 = g.head.getPosition();
   const nearSlot = g.bitCard && Math.abs(g.bitCard.body.getPosition().x - pz.slotX) < 0.85 && Math.abs(g.bitCard.body.getPosition().y - pz.slotY) < 0.6;
-  const jumping = game.t - (g.jumpAt ?? -9) < 1.3;
-  const slotHit = nearSlot && jumping; // 一定要真的按 ↑ 跳起來刷（站著晃到不算：走路煞車時頭也會甩到這麼高、腳也會短暫離地）
+  // v8.1（使用者：咬著卡不用跳、用走的也能打卡）：原本「1.3 秒內跳過」就算，跳完落地再走過去也會過（走路時卡片本來就在打卡口高度）。
+  //   改成：這一跳還沒落地（落地後只寬限 0.1 秒）才算
+  const jumping = game.t - (g.jumpAt ?? -9) < 1.3 && (!g.jumpLandAt || game.t - g.jumpLandAt < 0.1);
+  // 跳起來時卡片會被甩到打卡口上方，所以空中只要卡片「經過」打卡口（x 在範圍內、不低於打卡口）就算刷到，不要求剛好停在打卡口高度
+  const cp = g.bitCard && g.bitCard.body.getPosition(), passSlot = cp && Math.abs(cp.x - pz.slotX) < 0.85 && cp.y > pz.slotY - 0.6 && cp.y < pz.slotY + 2.5;
+  const slotHit = passSlot && jumping; // 一定要真的按 ↑ 跳起來刷（站著晃到不算：走路煞車時頭也會甩到這麼高、腳也會短暫離地）
   if (nearSlot && !jumping && alive && game.t - (game.jumpHintAt ?? -9) > 3) { game.jumpHintAt = game.t; say('punchJump', 2, 1); }
   const headAtSlot = !g.bitCard && Math.hypot(hp2.x - pz.slotX, hp2.y - pz.slotY) < 0.9;
   if ((game.state === 'run' || game.state === 'down') && (slotHit || headAtSlot)) {
@@ -1345,9 +1363,11 @@ function bossTick() {
     // 座位區：主管巡視（固定事件，每條命一次，過了就不會再來）
     const st = LEVEL.seat;
     if (!game.flags.seatDone && x > st.x1 && x < st.x2 && game.time - (b.lastEnd ?? -99) > 3) { /* 被抓復活後先喘口氣再來 */ b.phase = 'warn'; b.mode = 'seat'; b.t = 0; say('seatWarn', 3.2, 2); return false; }
-    const ok = LEVEL.bossOk.some(([a, c]) => x > a && x < c) && !game.pie;
-    const late = x > LEVEL.bossOk[LEVEL.bossOk.length - 1][0] && (b.count || 0) < 2; // 快到終點還不到 2 次：保底補一次
-    const gapOk = game.time - (b.lastEnd ?? -99) > TUNE.bossMinGap; // 任何兩次巡視（含主管）至少隔這麼久，不會剛走又來
+    const ok = LEVEL.bossOk.some(([a, c]) => x > a && x < c) && !(game.pie && Math.abs(game.pie.body.getPosition().x - x) < 15); // v8.2：圓餅圖已經滾到後面很遠就不算
+    // 保底（v8.2 使用者：一場大約 2 次，但不在打卡區）：到 28 m 還沒來過 → 補第 1 次；到最後一段平地（46.5 m）還不到 2 次 → 補第 2 次
+    const late = (x > LEVEL.bossOk[LEVEL.bossOk.length - 1][0] && (b.count || 0) < 2) || (x > 28 && x < 31 && !(b.count > 0));
+    // 任何兩次巡視（含主管）至少隔 bossMinGap 秒，不會剛走又來；保底那次放寬到 4 秒（老闆在 28 m 走後，快的人走到 46.5 m 只要 4–5 秒；加上 2.6 秒腳步聲，實際盯人至少隔 6.6 秒）
+    const gapOk = game.time - (b.lastEnd ?? -99) > (late ? 4 : TUNE.bossMinGap);
     if ((game.time > b.next || late) && ok && gapOk) { b.phase = 'warn'; b.mode = ''; b.t = 0; b.count = (b.count || 0) + 1; say('bossWarn', 2.2, 2); }
     return false;
   }
@@ -1501,14 +1521,14 @@ function finish() {
   updateBest();
   commitHighlight();
   game.result = { t, raw, bonus, bonusText: bonusText(), falls: game.falls, deaths: game.deaths, isBest, prev, best: game.best };
-  game.result.grade = gradeOf(t, game.falls + game.deaths); game.result.gradeLine = pick(GRADE_LINES[game.result.grade]);
+  game.result.grade = gradeOf(t); game.result.gradeLine = pick(GRADE_LINES[game.result.grade]);
   statInc('finishes');
   award('first_finish');
   if (game.falls + game.deaths === 0) award('no_fall');
   if (t < 50) award('fast');
   if (game.falls + game.deaths >= 10) award('fall10');
   updateCopyBtn();
-  game.result.talk = pick(DUO[game.falls + game.deaths === 0 ? 'finishClean' : 'finish']);
+  game.result.talk = finishTalk(game.result);
   if (game.best && game.best.frames.length > 20) game.hlPlay = { frames: game.best.frames, t: 0 };
 }
 
@@ -1752,7 +1772,7 @@ function render() {
   drawGrid();
   const pose = currentPose();
   drawChaseFill();
-  levelOcc = [];
+  levelOcc = []; mustOcc = [];
   drawLevel(pose);
   drawGiraffe(pose);
   for (const pr of game.props || []) if (pr.type === 'card') drawProp(pr);
@@ -1861,6 +1881,7 @@ function drawLevel(pose) {
     txt('長頸鹿指數 ' + (avg >= 0 ? '▲ ' : '▼ ') + Math.abs(pct) + '%', sx((LEVEL.stock.x1 + LEVEL.stock.x2) / 2), sy(3.4), '13px ' + FONT, avg >= 0 ? '#217346' : '#D13438');
     if (crashing) txt('崩盤中！', sx((LEVEL.stock.x1 + LEVEL.stock.x2) / 2), sy(2.8), 'bold 14px ' + FONT, '#D13438');
     else if (game.stock.some(s => s.launchable)) txt('反彈！現在按 ↑', sx((LEVEL.stock.x1 + LEVEL.stock.x2) / 2), sy(2.8), 'bold 15px ' + FONT, '#217346');
+    if (game.t - (game.launchPerfectFx ?? -9) < 1.6 && game.g) { const hp = game.g.head.getPosition(); txt('完美時機！多飛一段', sx(hp.x), sy(hp.y + 1.2), 'bold 16px ' + FONT, '#C55A11'); } // v8.2
   }
   // #REF! 儲存格
   for (const c of game.refCells) {
@@ -1902,7 +1923,7 @@ function drawLevel(pose) {
   drawRouteSign(); drawBonus();
   // 樹枝（v3：真的葉子形狀，其中一片缺一口；靠近時像 Excel 儲存格註解一樣彈出提示）
   for (const b of LEVEL.branches) {
-    const near = game.g && Math.abs(game.g.torso.getPosition().x - b.x) < 14;
+    const near = game.g && game.g.torso.getPosition().x - b.x > -14 && game.g.torso.getPosition().x < b.x + 0.5; // v8.1：走過樹枝之後就不再提示
     ctx.strokeStyle = '#A0673A'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(sx(b.x), sy(b.y + 0.08)); ctx.lineTo(sx(b.x), sy(b.y + 3)); ctx.stroke();
     ctx.fillStyle = '#A0673A'; roundRect(sx(b.x - b.w / 2), sy(b.y + 0.08), b.w * ppm, 0.16 * ppm, 0.08 * ppm); ctx.fill();
     // [x 偏移（× 枝長）, 長度 m, 角度（往下垂）, 顏色, 缺一口]
@@ -1924,12 +1945,22 @@ function drawLevel(pose) {
     // Excel 註解：右上角紅色小三角，靠近時彈出黃色註解框
     const cx = sx(b.x + b.w / 2), cy = sy(b.y + 0.08);
     ctx.fillStyle = '#D13438'; ctx.beginPath(); ctx.moveTo(cx - 9, cy); ctx.lineTo(cx, cy); ctx.lineTo(cx, cy + 9); ctx.fill();
-    if (near) {
+    if (near && !game.g.bitBranch) { // v8.1：咬住樹枝後就不用再提示（原本盪的時候一直蓋住對岸的春節紅包）
       const t1 = '註解：這格可以咬', t2 = `低頭靠近，按${K.bite}咬住`; ctx.font = 'bold 14px ' + FONT;
-      const w = Math.max(ctx.measureText(t1).width, ctx.measureText(t2).width) + 22, h = 48, x = Math.min(cx + 10, W - w - 8), y = cy - h - 6;
+      const w = Math.max(ctx.measureText(t1).width, ctx.measureText(t2).width) + 22, h = 48;
+      // v8.1（使用者：電腦版春節紅包被註解擋住）：依序試 右上 → 左上 → 再往左推 → 往上抬；都會擋到獎金等場景物件（levelOcc）就先不顯示
+      const hits = (x0, y0) => levelOcc.filter(r => x0 < r.x + r.w && x0 + w > r.x && y0 < r.y + r.h && y0 + h > r.y);
+      const y0 = cy - h - 6, xr = Math.min(cx + 10, W - w - 8), xl = Math.max(ROW_W + 8, cx - 10 - w);
+      const cands = [[xr, y0], [xl, y0]];
+      const hl = hits(xl, y0); if (hl.length) cands.push([Math.max(ROW_W + 8, Math.min(...hl.map(r => r.x)) - w - 4), y0]);
+      const hr = hits(xr, y0); if (hr.length) cands.push([xr, Math.min(...hr.map(r => r.y)) - h - 4]);
+      const pick = cands.find(([x1, y1]) => y1 >= 2 && !hits(x1, y1).length);
+      if (pick) { const [x, y] = pick;
+      levelOcc.push({ x: x - 4, y: y - 4, w: w + 8, h: h + 8 }); // 主播註解也別蓋住它
       ctx.strokeStyle = '#B8A34A'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x, y + h); ctx.stroke();
       ctx.fillStyle = '#FFF2CC'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = '#C9B458'; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
       txt(t1, x + 11, y + 15, 'bold 14px ' + FONT, '#7A6400', 'left'); txt(t2, x + 11, y + 34, '14px ' + FONT, '#3A2E00', 'left');
+      }
     }
   }
   // 深淵上方的提示牌（掛在樹枝下面，靠近時看得到，不會被長頸鹿擋住）
@@ -1987,9 +2018,11 @@ function drawProp(pr) {
   if (pr.type === 'chair') { drawChair(t, pr.ride ? '#C55A11' : '#44546A', pr.body); if (pr.ride && !pr.second && Math.abs(p.x - game.cam.x) < 20) txt('辦公室椅子：按 ↑ 跳上去', sx(p.x), sy(p.y + 1.55), 'bold 14px ' + FONT, '#C55A11'); }
   else if (pr.type === 'box') inLocal(t, () => { const h = LEVEL.stack.box / 2; ctx.fillStyle = '#D9B382'; ctx.fillRect(-h, -h, h * 2, h * 2); ctx.strokeStyle = '#8C6239'; ctx.lineWidth = 0.025; ctx.strokeRect(-h, -h, h * 2, h * 2); ctx.beginPath(); ctx.moveTo(-h, h * 0.25); ctx.lineTo(h, h * 0.25); ctx.stroke(); });
   else if (pr.type === 'card') {
-    const cw = LEVEL.cards.hw, ch = LEVEL.cards.hh;
+    // v8.1（使用者：編號幾乎貼到卡片邊緣，不好看）：字小一點，卡片畫面寬度跟著字寬、左右各留約 0.1 m（只改畫面，咬的判定不變）
+    const cf = 'bold ' + Math.round(clamp(ppm * 0.32, 13, 22)) + 'px Consolas, "SF Mono", monospace'; ctx.font = cf;
+    const cw = Math.max(LEVEL.cards.hw, ctx.measureText(pr.code).width / ppm / 2 + 0.1), ch = LEVEL.cards.hh;
     inLocal(t, () => { ctx.fillStyle = '#fff'; ctx.fillRect(-cw, -ch, cw * 2, ch * 2); ctx.strokeStyle = '#404040'; ctx.lineWidth = 0.03; ctx.strokeRect(-cw, -ch, cw * 2, ch * 2); ctx.fillStyle = '#2F5597'; ctx.fillRect(-cw, ch - 0.16, cw * 2, 0.16); ctx.fillStyle = '#D9D9D9'; ctx.fillRect(-cw * 0.55, -ch * 0.55, cw * 1.1, ch * 0.35); });
-    txt(pr.code, sx(p.x), sy(p.y + 0.06), 'bold ' + Math.round(clamp(ppm * 0.38, 15, 26)) + 'px Consolas, "SF Mono", monospace', '#111');
+    txt(pr.code, sx(p.x), sy(p.y + 0.06), cf, '#111');
   }
 }
 function drawOffice() {
@@ -2261,13 +2294,14 @@ function drawBonus() {
     if (got && game.t - got > 1.2) continue;
     const fly = got ? (game.t - got) : 0, x = sx(bz.x), y = sy(bz.y + 0.06 * Math.sin(game.t * 3 + bz.x) + fly * 2.5);
     if (x < -120 || x > W + 120) continue;
-    const big = bz.year ? 1.35 : 1, w = 0.6 * ppm * big, h = 0.4 * ppm * big;
+    const big = bz.year ? 1.35 : 1, w = Math.max(0.6 * ppm, 46) * big, h = w * 2 / 3; // v8.2（使用者：手機直式紅包太小看不出是什麼）：畫面上至少 46 px 寬（只改畫面，咬的判定不變）
     ctx.save(); ctx.globalAlpha = got ? Math.max(0, 1 - fly / 1.2) : 1;
     const near = game.g && Math.hypot(game.g.head.getPosition().x - bz.x, game.g.head.getPosition().y - bz.y) < 2.2 && !(bz.r && game.g.support > 0); // 春節（bz.r）只在空中提示，對岸走路時不會一閃一閃
     if ((near || bz.year) && !got) { ctx.fillStyle = bz.year ? 'rgba(255,215,0,' + (0.3 + 0.15 * Math.sin(game.t * 6)).toFixed(2) + ')' : 'rgba(255,192,0,.35)'; ctx.beginPath(); ctx.ellipse(x, y, w * 0.85, h * 1.15, 0, 0, 7); ctx.fill(); }
     ctx.fillStyle = bz.color; ctx.strokeStyle = '#3A2E00'; ctx.lineWidth = 1.5; ctx.fillRect(x - w / 2, y - h / 2, w, h); ctx.strokeRect(x - w / 2, y - h / 2, w, h);
     ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.moveTo(x - w / 2, y - h / 2); ctx.lineTo(x, y); ctx.lineTo(x + w / 2, y - h / 2); ctx.stroke();
-    txt(bz.short, x, y + h * 0.18, 'bold ' + Math.max(11, Math.round(0.15 * ppm * big)) + 'px ' + FONT, '#FFF');
+    txt(bz.short, x, y + h * 0.18, 'bold ' + Math.max(13, Math.round(w * 0.26)) + 'px ' + FONT, '#FFF');
+    if (!got) { const r = { x: x - Math.max(w, 90) / 2 - 6, y: y - h * 1.1 - 14, w: Math.max(w, 90) + 12, h: h * 1.6 + 20 }; levelOcc.push(r); mustOcc.push({ x: x - w / 2 - 4, y: y - h / 2 - 4, w: w + 8, h: h + 8 }); } // v8.1：獎金（含上方「咬得到！」）不要被主播註解、樹枝註解蓋住
     if (got) txt('+' + bz.name + '　−' + (bz.year ? TUNE.bonusYear : TUNE.bonusJie) + ' 秒', x, y - h, 'bold 14px ' + FONT, bz.color);
     else if (near) txt(`咬得到！按${K.bite}`.trim(), x, y - h * 1.1, 'bold 13px ' + FONT, '#C55A11');
     ctx.restore();
@@ -2316,6 +2350,15 @@ function drawGiraffe(pose) {
     ctx.strokeStyle = C.ink; ctx.lineWidth = lw * 1.4; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(-0.84, 0.18); ctx.quadraticCurveTo(-1.05, 0.05, -1.05 + sw, -0.35); ctx.stroke();
     ctx.fillStyle = C.ink; blob(-1.05 + sw, -0.4, 0.06, 77);
+    if (skin === 'jiejie') { // 三節禮盒：尾巴綁一個紅包，跟著尾巴甩
+      // v8.2.1（使用者：紅包太小看不出是什麼）：放大成標準紅包樣子（金框＋金色「福」），用短繩綁在尾巴上
+      ctx.save(); ctx.translate(-1.05 + sw, -0.44); ctx.rotate(sw * 0.8);
+      ctx.strokeStyle = C.ink; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -0.08); ctx.stroke();
+      ctx.fillStyle = '#C00000'; ctx.fillRect(-0.16, -0.5, 0.32, 0.42); ctx.strokeRect(-0.16, -0.5, 0.32, 0.42);
+      ctx.strokeStyle = '#FFC000'; ctx.lineWidth = lw * 0.8; ctx.strokeRect(-0.12, -0.46, 0.24, 0.34);
+      ctx.fillStyle = '#E04040'; ctx.beginPath(); ctx.moveTo(-0.16, -0.08); ctx.lineTo(0, -0.18); ctx.lineTo(0.16, -0.08); ctx.closePath(); ctx.fill(); ctx.strokeStyle = C.ink; ctx.lineWidth = lw * 0.7; ctx.stroke(); // 封口
+      localText('福', 0, -0.33, 0.2, '#FFC000'); ctx.restore();
+    }
   });
   // 脖子
   const pts = [local2world(torso, g.neckBaseLocal.x, g.neckBaseLocal.y)];
@@ -2459,7 +2502,13 @@ function drawBodySkin(lw) { // 身體裡面的花紋（已經 clip 在身體裡�
   }
 }
 function drawBodySkinTop(lw) { // 身體上面貼的東西（不 clip）
-  if (skin === 'sticky') {
+  if (skin === 'racer') { // 辦公椅賽車手：身體側面的號碼布
+    ctx.save(); ctx.translate(0.15, 0.0); ctx.rotate(-0.05);
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = C.ink; ctx.lineWidth = lw; ctx.fillRect(-0.3, -0.22, 0.6, 0.44); ctx.strokeRect(-0.3, -0.22, 0.6, 0.44);
+    ctx.fillStyle = '#C00000'; ctx.fillRect(-0.3, 0.12, 0.6, 0.1);
+    [[-0.26, 0.18], [0.26, 0.18], [-0.26, -0.18], [0.26, -0.18]].forEach(([x, y]) => { ctx.fillStyle = '#A6A6A6'; ctx.beginPath(); ctx.arc(x, y, 0.02, 0, 7); ctx.fill(); }); // 別針
+    localText('No.1', 0, -0.05, 0.2, C.ink); ctx.restore();
+  } else if (skin === 'sticky') {
     [[-0.6, 0.1, -0.2, '#FFF2A8', '報告'], [-0.15, -0.05, 0.15, '#FFC7CE', '催!!'], [0.3, 0.12, -0.1, '#BDD7EE', '開會'], [0.62, -0.12, 0.25, '#FFF2A8', 'KPI']]
       .forEach(([x, y, r, c, t]) => stickyNote(x, y, 0.3, r, c, lw, t));
   } else if (skin === 'bandage') {
@@ -2609,6 +2658,27 @@ function drawFrontSkin(neckPts, torso) {
       txt('STAFF', 0, 0.06 * ppm, 'bold ' + Math.max(6, 0.08 * ppm) + 'px ' + FONT, '#fff');
       txt('長頸鹿', 0, 0.43 * ppm, 'bold ' + Math.max(6, 0.09 * ppm) + 'px ' + FONT, C.ink);
     });
+  } else if (skin === 'jiejie') { // 三節禮盒：脖子掛一串粽子，跟著跑跳甩
+    onNeck(neckPts, 0.1, () => { ctx.strokeStyle = '#7F6000'; ctx.lineWidth = 0.03; ctx.beginPath(); ctx.moveTo(0.04, 0.16); ctx.lineTo(-0.04, -0.16); ctx.stroke(); });
+    const P = rope('zong', ring, 6, 0.9, { air: 0.3, chest: torso });
+    ctx.strokeStyle = '#7F6000'; ctx.lineWidth = 2; ctx.beginPath(); P.forEach((q, i) => i ? ctx.lineTo(sx(q.x), sy(q.y)) : ctx.moveTo(sx(q.x), sy(q.y))); ctx.stroke();
+    [2, 4, 6].forEach(i => { const q = P[i], a = segAng(P[i - 1], q); hanging(q, a, () => {
+      ctx.scale(1.35, 1.35); ctx.fillStyle = '#548235'; ctx.strokeStyle = C.ink; ctx.lineWidth = lw; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-0.15, 0.22); ctx.lineTo(0.15, 0.22); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = '#C9B458'; ctx.lineWidth = 0.025; ctx.beginPath(); ctx.moveTo(-0.08, 0.11); ctx.lineTo(0.08, 0.11); ctx.moveTo(-0.11, 0.17); ctx.lineTo(0.11, 0.17); ctx.stroke(); // 綁繩
+    }); });
+  } else if (skin === 'tycoon') { // 年終暴發戶：粗金項鍊＋大金牌，跟著甩
+    const P = rope('chain', ring, 6, 0.75, { air: 0.3, chest: torso });
+    for (let i = 1; i < P.length; i++) { const a = P[i - 1], b = P[i]; for (let k = 0; k < 2; k++) { const t2 = (k + 0.5) / 2, x = a.x + (b.x - a.x) * t2, y = a.y + (b.y - a.y) * t2;
+      ctx.fillStyle = '#FFC000'; ctx.strokeStyle = '#7F6000'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.ellipse(sx(x), sy(y), 0.06 * ppm, 0.04 * ppm, -segAng(a, b) + (k ? 0 : Math.PI / 2), 0, 7); ctx.fill(); ctx.stroke(); } }
+    const e = P[P.length - 1], a = segAng(P[P.length - 2], e);
+    hanging(e, a, () => {
+      ctx.scale(1.3, 1.3); ctx.fillStyle = '#FFC000'; ctx.strokeStyle = '#7F6000'; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.arc(0, 0.17, 0.17, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(-0.06, 0.1, 0.04, 0.02, -0.6, 0, 7); ctx.fill();
+      ctx.translate(0, 0.18); ctx.scale(1 / ppm, 1 / ppm); txt('$', 0, 0, 'bold ' + Math.max(8, 0.22 * ppm) + 'px Arial, sans-serif', '#7F6000');
+    });
+  } else if (skin === 'racer') { // 辦公椅賽車手：護目鏡的帶子從頭後面往後飄
+    const hb = neckAt(neckPts, 0.97), P = rope('goggle', { x: hb.x - 0.1, y: hb.y + 0.12 }, 5, 0.75, { stiff: 0.6, air: 0.25 });
+    ribbon(P, i => 0.09 - 0.008 * i, '#2F5597', 1.5);
   } else if (skin === 'phones') {
     onNeck(neckPts, 0.1, () => { ctx.strokeStyle = C.ink; ctx.lineWidth = 0.025; ctx.beginPath(); ctx.moveTo(0.04, 0.16); ctx.lineTo(-0.04, -0.16); ctx.stroke(); });
     const P = rope('sign', ring, 4, 0.4, { air: 0.3, chest: torso }), e = P[P.length - 1], a = segAng(P[P.length - 2], e);
@@ -2633,7 +2703,32 @@ function drawHeadPattern(hw, hh) {
 function drawHeadSkin(hw, hh, hs, lw) {
   ctx.strokeStyle = C.ink; ctx.lineWidth = lw;
   const X = v => v * hs; // 跟著大頭症放大
-  if (skin === 'hardhat') {
+  if (skin === 'racer') { // 辦公椅賽車手：賽車安全帽＋大護目鏡
+    ctx.fillStyle = '#fff'; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.ellipse(X(-0.08), X(0.12), X(0.42), X(0.36), 0, 0, Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.save(); ctx.beginPath(); ctx.ellipse(X(-0.08), X(0.12), X(0.42), X(0.36), 0, 0, Math.PI); ctx.clip(); ctx.fillStyle = '#C00000'; ctx.fillRect(X(-0.2), X(0.1), X(0.12), X(0.4)); ctx.fillRect(X(-0.02), X(0.1), X(0.05), X(0.4)); ctx.restore();
+    ctx.strokeStyle = C.ink; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.ellipse(X(-0.08), X(0.12), X(0.42), X(0.36), 0, 0, Math.PI); ctx.stroke();
+    ctx.fillStyle = '#2F5597'; ctx.fillRect(X(-0.36), X(0.02), X(0.66), X(0.08)); // 護目鏡帶子
+    [[-0.03, 0.06, 0.12], [0.19, 0.07, 0.1]].forEach(([x, y, r]) => { ctx.fillStyle = '#BFBFBF'; ctx.beginPath(); ctx.arc(X(x), X(y), X(r + 0.03), 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(91,155,213,.75)'; ctx.beginPath(); ctx.arc(X(x), X(y), X(r), 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.ellipse(X(x - r * 0.35), X(y + r * 0.35), X(r * 0.3), X(r * 0.15), -0.6, 0, 7); ctx.fill(); });
+    localText('1', X(-0.14), X(0.34), X(0.16), '#C00000');
+  } else if (skin === 'jiejie') { // 三節禮盒：額頭貼一張菱形春聯「春」＋垂下來會晃的紅流蘇（v8.2.1 使用者選 C；原本頭頂月餅像禿頭、河童）
+      ctx.save(); ctx.translate(X(-0.12), X(0.3)); ctx.rotate(Math.PI / 4 - 0.15);
+      ctx.fillStyle = '#C00000'; ctx.lineWidth = lw * 1.2; ctx.fillRect(X(-0.15), X(-0.15), X(0.3), X(0.3)); ctx.strokeRect(X(-0.15), X(-0.15), X(0.3), X(0.3));
+      ctx.strokeStyle = '#FFC000'; ctx.lineWidth = lw; ctx.strokeRect(X(-0.12), X(-0.12), X(0.24), X(0.24)); ctx.restore();
+      localText('春', X(-0.12), X(0.3), X(0.17), '#FFC000', -0.15);
+      const sw = 0.25 * Math.sin(game.t * 5); ctx.save(); ctx.translate(X(-0.12), X(0.09)); ctx.rotate(sw);
+      ctx.strokeStyle = '#C00000'; ctx.lineWidth = X(0.02); ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, X(-0.12)); ctx.stroke();
+      ctx.fillStyle = '#FFC000'; ctx.beginPath(); ctx.arc(0, X(-0.13), X(0.025), 0, 7); ctx.fill();
+      ctx.strokeStyle = '#C00000'; ctx.lineWidth = X(0.012); for (let k = -2; k <= 2; k++) { ctx.beginPath(); ctx.moveTo(k * X(0.012), X(-0.15)); ctx.lineTo(k * X(0.02), X(-0.27)); ctx.stroke(); } ctx.restore();
+  } else if (skin === 'tycoon') { // 年終暴發戶：金框墨鏡＋嘴巴叼一疊鈔票
+    ctx.fillStyle = '#111'; ctx.strokeStyle = '#BF8F00'; ctx.lineWidth = lw * 1.6;
+    ctx.beginPath(); roundRect(X(-0.17), X(-0.02), X(0.27), X(0.17), X(0.04)); ctx.fill(); ctx.stroke(); ctx.beginPath(); roundRect(X(0.12), X(-0.01), X(0.21), X(0.15), X(0.04)); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X(0.1), X(0.08)); ctx.lineTo(X(0.12), X(0.08)); ctx.moveTo(X(-0.17), X(0.08)); ctx.lineTo(X(-0.34), X(0.13)); ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.beginPath(); ctx.ellipse(X(-0.08), X(0.1), X(0.05), X(0.02), -0.4, 0, 7); ctx.fill();
+    ctx.save(); ctx.translate(X(0.4), X(-0.2)); ctx.rotate(-0.3); ctx.scale(1.25, 1.25); ctx.strokeStyle = C.ink; ctx.lineWidth = lw * 0.8;
+    [[0.0, '#A9D08E'], [0.035, '#C6E0B4'], [0.07, '#A9D08E']].forEach(([o, c]) => { ctx.fillStyle = c; ctx.fillRect(X(-0.2 + o), X(-0.07 + o * 0.6), X(0.4), X(0.13)); ctx.strokeRect(X(-0.2 + o), X(-0.07 + o * 0.6), X(0.4), X(0.13)); });
+    localText('$', X(0.07), X(0.0), X(0.1), '#375623'); ctx.restore();
+    const k = (game.t * 1.1) % 1; if (k < 0.3) { ctx.fillStyle = '#fff'; const r = X(0.06) * Math.sin(k / 0.3 * Math.PI); ctx.beginPath(); ctx.moveTo(X(0.28), X(0.14) + r); ctx.lineTo(X(0.28) + r * 0.3, X(0.14)); ctx.lineTo(X(0.28), X(0.14) - r); ctx.lineTo(X(0.28) - r * 0.3, X(0.14)); ctx.fill(); } // 墨鏡反光閃一下
+  } else if (skin === 'hardhat') {
     ctx.fillStyle = '#FFC000'; ctx.beginPath(); ctx.ellipse(X(-0.06), X(0.1), X(0.38), X(0.3), 0, 0, Math.PI); ctx.fill(); ctx.stroke();
     ctx.fillRect(X(-0.5), X(0.07), X(0.9), X(0.07)); ctx.strokeRect(X(-0.5), X(0.07), X(0.9), X(0.07));
     ctx.strokeStyle = '#BF8F00'; ctx.lineWidth = lw * 1.2; ctx.beginPath(); ctx.moveTo(X(-0.06), X(0.14)); ctx.lineTo(X(-0.06), X(0.39)); ctx.stroke();
@@ -2767,11 +2862,12 @@ const WHO_COLOR = { '主播': '#7A6400', '賽評': '#1F4E79' };
 // 這一幀畫面上已被佔用的區塊（彈窗、老闆、提示），主播註解會避開
 let occupied = [];
 let topOcc = []; // v8：高優先的面板（老闆 / 主管彈窗、陣亡提示）。主播註解擋到這些就先不顯示，不疊在一起
+let mustOcc = []; // v8.1：絕對不能蓋住的場景物件（還沒拿的獎金）：主播註解找不到空位時寧可先不顯示
 let levelOcc = []; // 場景裡要讓主播註解避開的東西（打卡機、員工編號牌），drawLevel 時收集
 const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 const overlapArea = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 function drawNote(pose) {
-  const n = game.note; if (!n || game.t > n.until || rewardShowing()) return;
+  const n = game.note; if (!n || game.t > n.until || game.state === 'finish') return; // v8.2：完賽後成績表就有主播 / 賽評，不用再浮一個註解在旁邊
   const vis = n.lines.filter(l => game.t >= l.at);
   if (!vis.length) return;
   const head = pose.parts[pose.parts.length - 1];
@@ -2812,10 +2908,11 @@ function drawNote(pose) {
   // 沒有完全空的位置時，挑擋到最少的（擋到彈窗的代價比擋到長頸鹿高）
   if (!pk) pk = options.find(o => o.c === 0) || options.reduce((a, b) => (b.c < a.c ? b : a));
   n.pos = { x: pk.x, y: pk.y, k: pk.k };
-  if (topOcc.some(o => overlapArea({ x: pk.x, y: pk.y, w: pk.bw, h: pk.bh }, o) > 0)) { n.cur = null; return; } // v8：會擋到老闆 / 陣亡提示就先讓開
+  if (topOcc.concat(mustOcc).some(o => overlapArea({ x: pk.x, y: pk.y, w: pk.bw, h: pk.bh }, o) > 0)) { n.cur = null; return; } // v8：會擋到老闆 / 陣亡提示就先讓開
   // 換位置時滑過去，不要瞬移
   n.cur = n.cur || { x: pk.x, y: pk.y };
   n.cur.x += (pk.x - n.cur.x) * 0.25; n.cur.y += (pk.y - n.cur.y) * 0.25;
+  if (mustOcc.some(o => overlapArea({ x: n.cur.x, y: n.cur.y, w: pk.bw, h: pk.bh }, o) > 0)) return; // 滑過去的途中經過獎金也先不畫
   const bx = Math.round(n.cur.x), by = Math.round(n.cur.y), bh = pk.show.length * lh + 12;
   const alpha = clamp((n.until - game.t) / 0.3, 0, 1) * clamp((game.t - n.born) / 0.12, 0, 1);
   ctx.globalAlpha = alpha;
@@ -2870,8 +2967,7 @@ function drawBanner(title, sub, color, bg) {
 
 function drawResult() {
   const r = game.result;
-  if (r.best) drawBanner('本場最慘一幕：' + r.best.label, '', '#2F5597', '#DDEBF7');
-  const bw = Math.min(320, W - ROW_W - 16), rows = [
+  const rows = [
     ['完賽時間', fmt(r.t) + (r.bonus ? '（獎金折抵 −' + r.bonus + ' 秒）' : '') + (r.isBest ? '（新紀錄）' : '')],
     ['獎金', r.bonusText || '—'],
     ['摔倒 / 陣亡', r.falls + ' 次 / ' + r.deaths + ' 次'],
@@ -2881,25 +2977,46 @@ function drawResult() {
     ['賽評', r.talk[1]],
     ['下一步', IS_TOUCH ? '按「回存檔點」再玩 ・ 下方分享成績' : 'R 再跑一次 ・ 下方按鈕複製成績'],
   ];
-  // v7：畫面矮（手機橫式）時列高和字縮小，還放不下就先拿掉主播 / 賽評兩行；太長的字截斷，不超出框外
-  const avail = H - HEAD_H - 70;
-  let rh = clamp(Math.floor((avail - 30) / rows.length), 15, 24);
-  if (rh < 18) { rows.splice(rows.findIndex(r => r[0] === '主播'), 2); rh = clamp(Math.floor((avail - 30) / rows.length), 15, 24); }
-  const rf = Math.round(clamp(rh * 0.52, 10, 12)), hh = Math.round(clamp(rh + 2, 20, 26));
-  const bh = hh + 2 + rows.length * rh + 4;
-  const bx = ROW_W + (W - ROW_W - bw) / 2, by = HEAD_H + clamp((H - HEAD_H - bh - 40) / 3, 8, 80);
+  // v8.2（使用者：手機橫式看不到完整成績）：不再拿掉主播 / 賽評、不截斷文字。字太長就折行；畫面矮就分左右兩欄；
+  //   下方要留位置給「分享 / 複製成績」按鈕
+  // 手機橫式：按鍵疊在畫面左右兩側，成績表要放在兩側按鍵中間
+  let fx1 = ROW_W + 8, fx2 = W - 8;
+  if (IS_TOUCH) { const cr = cv.getBoundingClientRect(); document.querySelectorAll('[data-touch]').forEach(b => { const q = b.getBoundingClientRect(); if (!q.width || q.top < cr.top + 60 || q.top > cr.bottom - 4) return; /* 右上角的「回存檔點」不算 */ const l = q.left - cr.left, rr = q.right - cr.left; if (l + rr < W) fx1 = Math.max(fx1, rr + 6); else fx2 = Math.min(fx2, l - 6); }); }
+  const top0 = HEAD_H + 8, availH = H - top0 - 50, availW = fx2 - fx1;
+  let L = null;
+  for (const rf of [12, 11, 10]) {
+    for (const cols of [1, 2]) {
+      const cw = Math.min(340, Math.floor((availW - (cols - 1) * 6) / cols)); if (cw < 210 && cols > 1) continue;
+      const font = rf + 'px ' + FONT, lh = rf + 5, hh = rf + 12; ctx.font = font; const kw = Math.ceil(Math.max(...rows.map(([k]) => ctx.measureText(k).width))) + 22;
+      const items = rows.map(([k, v]) => { const lines = wrapText(touchText(v), cw - kw - 10, font); return { k, lines, h: Math.max(rf + 10, lines.length * lh + 8) }; });
+      const per = Math.ceil(items.length / cols), colsArr = [];
+      for (let c = 0; c < cols; c++) colsArr.push(items.slice(c * per, (c + 1) * per));
+      const bh = hh + Math.max(...colsArr.map(a => a.reduce((t, it) => t + it.h, 0))) + 2;
+      L = { rf, font, lh, kw, cw, cols, colsArr, hh, bh };
+      if (bh <= availH) break;
+    }
+    if (L.bh <= availH) break;
+  }
+  const bw = L.cw * L.cols, bh = L.bh, bx = fx1 + (availW - bw) / 2, by = top0 + clamp((availH - bh) / 3, 0, 80);
   game.resultRect = { x: bx, y: by, w: bw, h: bh };
+  // 「本場最慘一幕」橫幅：會被成績表蓋到就不畫（表裡已經有「最慘一幕」）
+  if (r.best) { ctx.font = '13px ' + FONT; const bnW = ctx.measureText('本場最慘一幕：' + r.best.label).width + 56, bnY = HEAD_H + 36;
+    if (!(ROW_W + 16 < bx + bw && ROW_W + 16 + bnW > bx && bnY < by + bh && bnY + 28 > by)) drawBanner('本場最慘一幕：' + r.best.label, '', '#2F5597', '#DDEBF7');
+    else { ctx.strokeStyle = '#2F559788'; ctx.lineWidth = 6; ctx.strokeRect(ROW_W + 3, HEAD_H + 3, W - ROW_W - 6, H - HEAD_H - 6); } }
   placeCopyBtn();
   ctx.fillStyle = '#fff'; ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = C.green; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
-  ctx.fillStyle = C.green; ctx.fillRect(bx, by, bw, hh);
-  txt('樞紐分析：本次成績', bx + 10, by + hh / 2, (rf + 1) + 'px ' + FONT, '#fff', 'left');
-  const kw = Math.min(96, bw * 0.3);
-  rows.forEach(([k, v], i) => {
-    const y = by + hh + rh / 2 + i * rh;
-    txt(k, bx + 12, y, rf + 'px ' + FONT, '#666', 'left');
-    txt(fitText(touchText(v), bw - kw - 10, rf + 'px ' + FONT), bx + kw, y, rf + 'px ' + FONT, '#222', 'left');
-    ctx.strokeStyle = '#E6E6E6'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx, y + rh / 2); ctx.lineTo(bx + bw, y + rh / 2); ctx.stroke();
-  });;
+  ctx.fillStyle = C.green; ctx.fillRect(bx, by, bw, L.hh);
+  txt('今日加班紀錄', bx + 10, by + L.hh / 2, 'bold ' + (L.rf + 1) + 'px ' + FONT, '#fff', 'left');
+  L.colsArr.forEach((items, c) => {
+    const x0 = bx + c * L.cw; let y = by + L.hh;
+    if (c) { ctx.strokeStyle = '#BFBFBF'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0 + 0.5, by + L.hh); ctx.lineTo(x0 + 0.5, by + bh); ctx.stroke(); }
+    items.forEach(it => {
+      txt(it.k, x0 + 10, y + 4 + L.lh / 2, L.font, '#666', 'left');
+      it.lines.forEach((l, j) => txt(l, x0 + L.kw, y + 4 + L.lh / 2 + j * L.lh, L.font, '#222', 'left'));
+      y += it.h;
+      ctx.strokeStyle = '#E6E6E6'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x0, y + 0.5); ctx.lineTo(x0 + L.cw, y + 0.5); ctx.stroke();
+    });
+  });
 }
 
 // ---------- v7：造型預覽、造型分頁、新造型彈窗 ----------
@@ -2912,8 +3029,8 @@ function renderGiraffePreview(id, w, h) {
   const sv = { ctx, W, H, ppm, cx: game.cam.x, cy: game.cam.y, skin, tf: ctx.getTransform() };
   ctx = offCv.getContext('2d'); W = w; H = h;
   const t0 = pose.parts[0];
-  ppm = Math.min(w / 3.6, h / 5.4); // 長頸鹿大約 3.4 m 寬、5 m 高
-  game.cam.x = t0.x + 0.9 - (w / 2 - originX()) / ppm; game.cam.y = t0.y + 1.7 - (originY() - h / 2) / ppm;
+  ppm = Math.min(w / 4.8, h / 5.6); // 長頸鹿大約 3.4 m 寬、5 m 高；v8.2 左右多留空間，嘴巴叼的、頭上戴的才不會被切掉
+  game.cam.x = t0.x + 1.3 - (w / 2 - originX()) / ppm; game.cam.y = t0.y + 1.7 - (originY() - h / 2) / ppm;
   skin = id; game.previewing = true;
   try { ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); drawGiraffe(pose); } catch (e) { /* 預覽畫壞不影響遊戲 */ }
   ctx = sv.ctx; W = sv.W; H = sv.H; ppm = sv.ppm; game.cam.x = sv.cx; game.cam.y = sv.cy; skin = sv.skin; game.previewing = false;
@@ -3114,6 +3231,15 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.08 - v6', items: [
+    '股市反彈起飛不再飛太遠：會落在未存檔區前段；抓到反彈最後一瞬間按「跳」是完美時機，會多飛一段',
+    '打卡一定要咬著卡跳起來刷，用走的不算',
+    '老闆一場大約來 2 次，不會在打卡區出現；圓餅圖不會因為老闆來過就在深淵前突然滾下來',
+    '完賽表改名「今日加班紀錄」，手機橫式也看得到全部內容；主播和賽評會看你這場的表現說話',
+    '績效考核只看完賽時間',
+    '新造型 3 款：辦公椅賽車手、三節禮盒、年終暴發戶（現在每個成就都有造型）；「50 秒內完賽」成就改名「光速下班」',
+    '春節紅包不會再被提示框擋住；手機上的獎金變大；打卡卡片的編號不再貼邊',
+  ] },
   { v: '2026.11.08 - v5', items: [
     '新網址：animals-clock-out.github.io/Q4-KPI（舊網址已停用）',
     '分頁順序改成 成就 3、造型 4、更新紀錄 5（更新紀錄放最後）',
@@ -3259,9 +3385,26 @@ function wrapText(t, maxW, font) {
 // ---------- HUD ----------
 const fmt = t => { const m = Math.floor(t / 60), s = t - m * 60; return String(m).padStart(2, '0') + ':' + s.toFixed(1).padStart(4, '0'); };
 const rating = f => f === 0 ? '優雅' : f <= 2 ? '普通' : f <= 5 ? '很慘' : f <= 10 ? '慘不忍睹' : '行為藝術';
-// v7 績效考核：甲乙丙丁（依折抵後的完賽時間與摔倒 + 陣亡次數；門檻依各類玩家模擬調整）
+// v7 績效考核：甲乙丙丁（依折抵後的完賽時間；門檻依各類玩家模擬調整）。v8.2 拿掉「失誤 6 次降一等」（使用者：結果論就好，小遊戲娛樂為主）
 const GRADE_T = [55, 90, 150]; // 甲 < 55 秒、乙 < 90、丙 < 150，其餘丁
-function gradeOf(t, mishaps) { let i = GRADE_T.findIndex(x => t < x); if (i < 0) i = 3; if (mishaps >= 6) i = Math.min(3, i + 1); return '甲乙丙丁'[i]; }
+function gradeOf(t) { let i = GRADE_T.findIndex(x => t < x); if (i < 0) i = 3; return '甲乙丙丁'[i]; }
+// v8.2 完賽的主播 × 賽評：看這場表現挑（使用者：原本跟表現無關，接不起來）。順序：新紀錄 → 獎金全拿 → 摔倒 + 陣亡 6 次以上 → 甲乙丙丁
+//   {X} = 比上次快幾秒、{N} = 摔倒 + 陣亡次數；零失誤時甲 / 乙組多一句 FINISH_CLEAN
+const FINISH_TALK = {
+  record: [['新紀錄！比上次快了 {X} 秒', '這份進步記得寫進週報'], ['刷新個人紀錄！', '快截圖，明天就破不了'], ['破紀錄了！', '建議今天就去跟主管談加薪']],
+  allBonus: [['獎金全部入袋！', '今年過年紅包可以包大一點'], ['四包獎金全到手！', '會計正在重新對帳'], ['全拿！一包都沒漏', '這才是真正的 KPI']],
+  many: [['摔了 {N} 次，還是下班了！', '這就是上班族的奴性'], ['跌跌撞撞，總算打到卡', '過程不重要，有打到卡就好'], ['抵達終點！', '剩下的就交給法務處理']],
+  '甲': [['漂亮的下班！', '這速度可以去帶新人了'], ['準時下班！', '老闆還在開會，你已經在回家路上'], ['行雲流水！', '下班的速度比回訊息還快'], ['完美！', '這不像你'], ['完美下班！', '報表跟人一樣乾淨']],
+  '乙': [['平安下班！', '今天也是普通但美好的一天'], ['完賽！', '中規中矩，主管挑不出毛病'], ['收工！', '薪水小偷今天也平安下班了']],
+  '丙': [['終於下班了！', '比預期晚了一點，但有到就好'], ['完賽了！', '雖然過程不忍直視'], ['打到卡了！', '加班費應該可以多報一點']],
+  '丁': [['他終於肯下班了', '清潔阿姨都拖完第二輪地了'], ['完賽！', '捷運末班車還趕得上嗎？'], ['總算打卡了', '今天的加班時數創新高']],
+};
+const FINISH_CLEAN = [['零失誤完賽！', '主播今天沒有工作了']];
+function finishTalk(r) {
+  const n = r.falls + r.deaths, allB = LEVEL.bonuses.every(b => game.flags['b_' + b.id]);
+  let pool = r.isBest && r.prev > 0 ? FINISH_TALK.record : allB ? FINISH_TALK.allBonus : n >= 6 ? FINISH_TALK.many : FINISH_TALK[r.grade].concat(n === 0 && (r.grade === '甲' || r.grade === '乙') ? FINISH_CLEAN : []);
+  return pick(pool).map(l => l.replace('{X}', Math.max(0.1, r.prev - r.t).toFixed(1)).replace('{N}', n));
+}
 const GRADE_LINES = {
   '甲': ['表現亮眼，明年繼續保持（加薪另議）', '甲等：主管說你可以去帶新人了', '甲等：這份報表可以直接給老闆看'],
   '乙': ['中規中矩，跟你的薪水一樣', '乙等：大家都乙等，不用難過', '乙等：有進步空間，但主管也懶得講'],
