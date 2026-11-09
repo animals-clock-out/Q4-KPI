@@ -314,7 +314,7 @@ const TUNE = {
   bossFirst: [8, 12], // 老闆第一次出現（秒）
   bossGap: [10, 16],  // 之後每次間隔（秒）
   bossMinGap: 10,     // 任何兩次巡視（含保底、主管）最少間隔（秒）
-  seatWarn: 4.0,      // 座位區：主管走過來的預告秒數（要走回座位、坐好）
+  seatWarn: 3.0,      // 座位區：主管走過來的預告秒數（v9：4 → 3，使用者：預告太長，以為已經開始盯了）
   bonusJie: 3,       // v7：三節獎金（春節 / 端午 / 中秋）每包折抵秒數（使用者選 A：小確幸，順路拿就好）
   bonusYear: 6,      // v8：8 → 6（量過每包的代價後：全拿約比不拿快 8 秒；過了存檔點回頭拿來回約 6 秒，剛好打平）
   seatLook: 3.0,      // 座位區：主管盯著看幾秒   // 彈簧格：彈起幾秒後才往前推
@@ -1504,21 +1504,21 @@ function drawKeyRow() {
   keyRowRect = null; if (!keyRowOn()) return;
   const f = 15, kh = 24, ch = 34, pad = 10, hints = tutHintKeys ? tutHintKeys.split(',') : [];
   ctx.font = 'bold ' + f + 'px ' + FONT;
-  const cells = KEY_ROW.map(([codes, caps, label]) => { const capW = caps.map(c => Math.max(kh, ctx.measureText(c).width + 12)); ctx.font = f + 'px ' + FONT; const lw = ctx.measureText(codes[0] === 'KeyK' && keys.KeyK ? '咬住中' : label).width; ctx.font = 'bold ' + f + 'px ' + FONT;
+  const cells = KEY_ROW.map(([codes, caps, label]) => { const capW = caps.map(c => Math.max(kh, ctx.measureText(c).width + 12)); ctx.font = f + 'px ' + FONT; const lw = ctx.measureText(codes[0] === 'KeyK' ? '咬住中' : label).width; /* 咬的那格固定留「咬住中」的寬度，咬住時整排不會跟著移動 */ ctx.font = 'bold ' + f + 'px ' + FONT;
     return { codes, caps, label, capW, w: pad * 2 + capW.reduce((a, b) => a + b + 4, -4) + 8 + lw }; });
   const headW = 44, total = headW + cells.reduce((a, c) => a + c.w, 0), x0 = ROW_W + Math.max(8, (W - ROW_W - total) / 2), y0 = H - ch - 10;
   ctx.fillStyle = '#F3F3F3'; ctx.fillRect(x0, y0, headW, ch); ctx.strokeStyle = '#C8C8C8'; ctx.lineWidth = 1; ctx.strokeRect(x0 + 0.5, y0 + 0.5, headW, ch);
   txt('操作', x0 + headW / 2, y0 + ch / 2, f - 2 + 'px ' + FONT, '#555');
   let x = x0 + headW;
   for (const c of cells) {
-    const on = c.codes.some(k => k === 'KeyK' ? keys.KeyKraw : keys[k]), latched = c.codes[0] === 'KeyK' && keys.KeyK, hint = c.codes.some(k => hints.includes(k));
+    const isOn = k => k === 'KeyK' ? keys.KeyKraw : keys[k], on = c.codes.length === 1 && isOn(c.codes[0]), latched = c.codes[0] === 'KeyK' && keys.KeyK, hint = c.codes.some(k => hints.includes(k));
     ctx.fillStyle = on ? '#C6EFCE' : latched ? '#E2EFDA' : 'rgba(255,255,255,0.94)'; ctx.fillRect(x, y0, c.w, ch);
     ctx.strokeStyle = '#C8C8C8'; ctx.lineWidth = 1; ctx.strokeRect(x + 0.5, y0 + 0.5, c.w, ch);
     let kx = x + pad;
-    c.caps.forEach((cap, i) => { const w = c.capW[i], ky = y0 + (ch - kh) / 2;
-      ctx.fillStyle = on ? '#217346' : '#fff'; ctx.strokeStyle = on ? '#217346' : '#9A9A9A'; ctx.lineWidth = 1; roundRect(kx, ky, w, kh, 4); ctx.fill(); ctx.stroke();
-      ctx.fillStyle = on ? '#217346' : '#BDBDBD'; ctx.fillRect(kx + 2, ky + kh - 1, w - 4, 2);
-      txt(cap, kx + w / 2, ky + kh / 2, 'bold ' + f + 'px ' + FONT, on ? '#fff' : '#333'); kx += w + 4; });
+    c.caps.forEach((cap, i) => { const w = c.capW[i], ky = y0 + (ch - kh) / 2, kOn = isOn(c.codes[i]); // 每個鍵各自亮（← → 同一格，但只亮按下的那個）
+      ctx.fillStyle = kOn ? '#217346' : '#fff'; ctx.strokeStyle = kOn ? '#217346' : '#9A9A9A'; ctx.lineWidth = 1; roundRect(kx, ky, w, kh, 4); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = kOn ? '#217346' : '#BDBDBD'; ctx.fillRect(kx + 2, ky + kh - 1, w - 4, 2);
+      txt(cap, kx + w / 2, ky + kh / 2, 'bold ' + f + 'px ' + FONT, kOn ? '#fff' : '#333'); kx += w + 4; });
     txt(latched ? '咬住中' : c.label, kx + 4, y0 + ch / 2, (latched ? 'bold ' : '') + f + 'px ' + FONT, latched ? '#217346' : '#333', 'left');
     if (latched || on) { ctx.strokeStyle = '#217346'; ctx.lineWidth = latched ? 3 : 2; ctx.strokeRect(x + 1.5, y0 + 1.5, c.w - 3, ch - 3); }
     if (hint) { ctx.strokeStyle = 'rgba(226,160,46,' + (0.55 + 0.45 * Math.sin(game.t * 6)) + ')'; ctx.lineWidth = 3; ctx.strokeRect(x - 1, y0 - 1, c.w + 2, ch + 2); }
@@ -1875,11 +1875,13 @@ const copyBtn = () => document.getElementById('copyBtn');
 function updateCopyBtn() { const show = game.state === 'finish' && game.result && game.view === 'game' && !rewardShowing(); const b = copyBtn(), a = document.getElementById('againBtn'); if (b) b.hidden = !show; if (a) a.hidden = !show; const sk = document.getElementById('skipBtn'); if (sk) sk.hidden = !(game.tut && game.view === 'game' && !game.gateOpenAt); }
 function placeCopyBtn() {
   const b = copyBtn(), rr = game.resultRect; if (!b || !rr) return;
-  b.style.left = Math.round(rr.x + rr.w - b.offsetWidth - 8) + 'px';
-  b.style.top = Math.round(rr.y + rr.h + 8) + 'px';
+  // v9：成績表是用畫面的邏輯座標算的，按鈕是網頁元素：位置乘回顯示比例、按鈕也一起放大（不然電腦版按鈕又小又跑到左上）
+  const z = uiK, sc = el => { el.style.transformOrigin = '0 0'; el.style.transform = z !== 1 ? 'scale(' + z + ')' : ''; };
+  sc(b); b.style.left = Math.round((rr.x + rr.w - b.offsetWidth - 8) * z) + 'px';
+  b.style.top = Math.round((rr.y + rr.h + 8) * z) + 'px';
   const a = document.getElementById('againBtn'); if (!a) return; // 「再加一次班」放在分享按鈕左邊
-  a.style.left = Math.round(Math.max(rr.x, rr.x + rr.w - b.offsetWidth - 8 - a.offsetWidth - 10)) + 'px';
-  a.style.top = Math.round(rr.y + rr.h + 8) + 'px';
+  sc(a); a.style.left = Math.round(Math.max(rr.x, rr.x + rr.w - b.offsetWidth - 8 - a.offsetWidth - 10) * z) + 'px';
+  a.style.top = Math.round((rr.y + rr.h + 8) * z) + 'px';
 }
 
 // ---------- 錄影 ----------
@@ -1966,6 +1968,7 @@ function resize() {
   const zq = /[?&]zoom=([\d.]+)/.exec(location.search);
   uiK = zq ? +zq[1] : clamp(Math.min(r.width / TUNE.zoomW, r.height / TUNE.zoomH), 1, TUNE.zoomMax);
   W = r.width / uiK; H = r.height / uiK;
+  { const sk = document.getElementById('skipBtn'); if (sk) { sk.style.transformOrigin = '0 0'; sk.style.transform = uiK !== 1 ? 'scale(' + uiK + ')' : ''; sk.style.left = uiK !== 1 ? Math.round(46 * uiK) + 'px' : ''; sk.style.top = uiK !== 1 ? Math.round(28 * uiK) + 'px' : ''; } } // v9：「跳過訓練」也跟著顯示比例放大
   cv.width = Math.round(r.width * dpr); cv.height = Math.round(r.height * dpr);
   // v9（使用者選 C）：手機直式畫面寬只放 TUNE.portraitM 公尺（原本 14），長頸鹿畫大一點；只改畫面比例，物理、判定完全一樣。網址 ?pm=14 看舊比例
   const pm = /[?&]pm=([\d.]+)/.exec(location.search), portrait = IS_TOUCH && H > W && !/[?&]padin=0/.test(location.search);
@@ -2422,12 +2425,14 @@ function drawOffice() {
     if (b.mode === 'seat' && (b.phase === 'warn' || b.phase === 'look')) {
       const pulse = 4 * Math.sin(game.t * 8);
       const ok = game.g && seatIsOk(game.g);
-      ctx.strokeStyle = ok && ok.looking ? C.green : '#C00000'; ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx(st.monX), sy(st.monY), st.monR * ppm, 0, 7); ctx.stroke(); ctx.setLineDash([]);
-      txt(ok && ok.looking ? '有在看螢幕 ✔' : '頭放進圈圈裡', sx(st.monX), sy(st.monY - st.monR) - 14 + pulse, 'bold 15px ' + FONT, ok && ok.looking ? C.green : '#C00000');
+      // v9：預告（主管還在走過來）和盯人分清楚：預告時用橘色「先把頭放進圈圈 / 就這樣待著」，真的在盯才出現綠色「有在看螢幕 ✔」
+      const warnP = b.phase === 'warn', inC = ok && ok.looking, col = inC ? C.green : warnP ? '#ED7D31' : '#C00000';
+      ctx.strokeStyle = col; ctx.setLineDash([5, 4]); ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(sx(st.monX), sy(st.monY), st.monR * ppm, 0, 7); ctx.stroke(); ctx.setLineDash([]);
+      txt(warnP ? (inC ? '就這樣待著' : '先把頭放進圈圈') : inC ? '有在看螢幕 ✔' : '頭放進圈圈裡', sx(st.monX), sy(st.monY - st.monR) - 14 + pulse, 'bold 15px ' + FONT, col);
     } else txt('你的座位', sx(st.monX), sy(st.monY + 0.75), 'bold 13px ' + FONT, '#2F5597');
   }
   // 卡片架 + 牆上的員工編號
-  const cd = LEVEL.cards;
+  const cd = LEVEL.cards; game.boardRect = null;
   if (Math.abs(cd.x - game.cam.x) < 30) {
     const rw = cd.gap * 1.5 + cd.hw + 0.2, top = cd.y + cd.hh + 0.06;
     ctx.fillStyle = '#A6A6A6'; ctx.fillRect(sx(cd.x - rw), sy(top + 0.06), rw * 2 * ppm, 0.1 * ppm);
@@ -2459,6 +2464,7 @@ function drawOffice() {
     layout(k); while (boardH > room && k > 0.5) { k = Math.max(0.5, k - 0.05); layout(k); }
     const withHint = room >= boardH + Math.round(14 * k) * 2 + 4 && tx < last + 1.2; // v9：走過卡片架就不用這行（會跟打卡機上的編號小牌疊在一起）
     const by = Math.max(rackTopPx - 6 - boardH / 2, HEAD_H + 3 + boardH / 2);
+    game.boardRect = { x1: bx - w / 2, x2: bx + w / 2 }; // v9：打卡機上的編號小牌用來判斷公告牌看不看得到
     ctx.save(); ctx.translate(bx, by); ctx.scale(1, Math.max(0.04, sq)); ctx.translate(-bx, -by);
     ctx.fillStyle = showHidden ? '#FFF0F0' : '#fff'; ctx.strokeStyle = showHidden ? '#C00000' : '#2F5597'; ctx.lineWidth = 2; ctx.fillRect(bx - w / 2, by - boardH / 2, w, boardH); ctx.strokeRect(bx - w / 2, by - boardH / 2, w, boardH);
     const y2 = by + boardH / 2 - Math.round(17 * k);
@@ -2483,22 +2489,25 @@ function drawOffice() {
   if (Math.abs(pz.x1 - game.cam.x) < 30) {
     // 打卡機（抬高）：打卡口在 slotY，要咬著卡跳起來刷
     const cxk = sx(pz.slotX), sY = pz.slotY, hit = game.t - (game.punchAt ?? -9) < 0.6;
-    ctx.fillStyle = '#595959'; ctx.fillRect(cxk - 0.07 * ppm, sy(sY - 0.6), 0.14 * ppm, (sY - 0.6) * ppm);
-    ctx.fillStyle = hit ? '#C6EFCE' : '#D9D9D9'; ctx.strokeStyle = '#404040'; ctx.lineWidth = 2; roundRect(cxk - 0.55 * ppm, sy(sY + 0.7), 1.1 * ppm, 1.4 * ppm, 6); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#262626'; ctx.fillRect(cxk - 0.4 * ppm, sy(sY + 0.5), 0.8 * ppm, 0.32 * ppm);
-    txt(hit ? '嗶！' : '打卡', cxk, sy(sY + 0.34), 'bold 15px ' + FONT, '#7FFF7F');
-    ctx.fillStyle = '#C00000'; ctx.fillRect(cxk - 0.35 * ppm, sy(sY - 0.05), 0.7 * ppm, 0.08 * ppm); // 刷卡口
+    // v9（使用者手機直式：「打卡」兩個字跟打卡機混在一起看不清楚）：畫面小時打卡機照最小尺寸畫（只改畫面，刷卡判定不變），螢幕字跟著框大小
+    const cs = Math.max(ppm, 46), y0 = sy(sY - 0.05), top0 = y0 - 0.75 * cs, bot0 = y0 + 0.65 * cs;
+    ctx.fillStyle = '#595959'; ctx.fillRect(cxk - 0.07 * ppm, bot0, 0.14 * ppm, Math.max(0, sy(0) - bot0));
+    ctx.fillStyle = hit ? '#C6EFCE' : '#D9D9D9'; ctx.strokeStyle = '#404040'; ctx.lineWidth = 2; roundRect(cxk - 0.55 * cs, top0, 1.1 * cs, bot0 - top0, 6); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = '#262626'; ctx.fillRect(cxk - 0.4 * cs, y0 - 0.55 * cs, 0.8 * cs, 0.36 * cs);
+    txt(hit ? '嗶！' : '打卡', cxk, y0 - 0.37 * cs, 'bold ' + Math.round(Math.min(16, 0.3 * cs)) + 'px ' + FONT, '#7FFF7F');
+    ctx.fillStyle = '#C00000'; ctx.fillRect(cxk - 0.35 * cs, y0, 0.7 * cs, Math.max(3, 0.08 * cs)); // 刷卡口
     // v9：走過卡片架（公告翻回來）時，打卡機上方也顯示編號：手機直式畫面窄，這時卡片架上的公告常常已經在畫面外
     { const cd2 = LEVEL.cards, tx2 = game.g ? game.g.torso.getPosition().x : 0, nt2 = game.notice;
-      if (game.cardCode && nt2 && !nt2.hide && tx2 > cd2.x + cd2.gap + 1.2 && game.state !== 'finish') {
+      const br = game.boardRect, boardSeen = br && br.x1 > ROW_W - 10 && br.x2 < W + 10; // v9（使用者：公告牌看得到時不用重複提示）：公告牌整塊在畫面裡就不顯示
+      if (game.cardCode && nt2 && !nt2.hide && !boardSeen && tx2 > cd2.x + cd2.gap + 1.2 && game.state !== 'finish') {
         // 編號用等寬字（跟公告牌一樣，分得出 0 / O、l / 1）
-        const lab = '你的編號 ' + game.cardCode, lf = 'bold 16px Consolas, "SF Mono", ' + FONT; ctx.font = lf; let lw = ctx.measureText(lab).width + 16, ly = sy(sY + 0.7) - 22, lx = cxk; if (ly - 12 < HEAD_H + 4) { lx = cxk - 0.55 * ppm - 8 - lw / 2; ly = sy(sY + 0.35); } // 畫面矮（手機橫式）上面放不下：改放打卡機左邊
+        const lab = '你的編號 ' + game.cardCode, lf = 'bold 16px Consolas, "SF Mono", ' + FONT; ctx.font = lf; let lw = ctx.measureText(lab).width + 16, ly = top0 - 22, lx = cxk; if (ly - 12 < HEAD_H + 4) { lx = cxk - 0.55 * cs - 8 - lw / 2; ly = y0 - 0.4 * cs; } // 畫面矮（手機橫式）上面放不下：改放打卡機左邊
         ctx.fillStyle = '#fff'; ctx.strokeStyle = '#2F5597'; ctx.lineWidth = 2; roundRect(lx - lw / 2, ly - 12, lw, 24, 4); ctx.fill(); ctx.stroke();
         txt(lab, lx, ly, lf, '#C00000'); levelOcc.push({ x: lx - lw / 2 - 4, y: ly - 16, w: lw + 8, h: 32 }); mustOcc.push(levelOcc[levelOcc.length - 1]); } }
     const pulse = 3 * Math.sin(game.t * 6);
-    txt('按 ↑ 跳起來刷卡', cxk, sy(sY - 0.75) + 12 + pulse, 'bold 15px ' + FONT, '#C00000');
-    levelOcc.push({ x: cxk - 75, y: sy(sY - 0.75) + 12 + pulse - 12, w: 150, h: 24 }); // v8.5：主播註解也別蓋住這行提示
-    levelOcc.push({ x: cxk - 0.7 * ppm, y: sy(sY + 0.8), w: 1.4 * ppm, h: 2.2 * ppm }); // 主播註解別蓋住打卡機
+    txt('按 ↑ 跳起來刷卡', cxk, bot0 + 14 + pulse, 'bold 15px ' + FONT, '#C00000');
+    levelOcc.push({ x: cxk - 75, y: bot0 + 2 + pulse, w: 150, h: 24 }); // v8.5：主播註解也別蓋住這行提示
+    levelOcc.push({ x: cxk - 0.7 * cs, y: top0 - 4, w: 1.4 * cs, h: bot0 - top0 + 8 }); // 主播註解別蓋住打卡機
     // 大門
     ctx.fillStyle = '#DDEBF7'; ctx.strokeStyle = '#2F5597'; ctx.fillRect(sx(145.3), sy(3.4), 0.5 * ppm, 3.4 * ppm); ctx.strokeRect(sx(145.3), sy(3.4), 0.5 * ppm, 3.4 * ppm);
     txt('出口', sx(145.55), sy(3.7), 'bold 13px ' + FONT, '#2F5597');
@@ -2617,7 +2626,7 @@ function drawBossTalk(b, bx, by, s) {
   if (b.phase === 'warn') {
     // v1：腳步聲階段就在畫面中央警告 + 倒數，不只右下角
     const seatM = b.mode === 'seat', left = Math.max(0, (seatM ? TUNE.seatWarn : TUNE.bossWarn) - b.t);
-    bossPanel((seatM ? '主管巡視中！' : '老闆來了！') + left.toFixed(1), seatM ? '回到螢幕前' : '放開所有按鍵、站穩', null); // v7：文案精簡
+    bossPanel((seatM ? '主管走過來了 ' : '老闆來了！') + left.toFixed(1), seatM ? '先把頭放進螢幕圈圈' : '放開所有按鍵、站穩', null); // v9：主管預告改「走過來了」，跟盯人時的「主管在看！」分開 // v7：文案精簡
   }
   occupied.push({ x: bx - 70 * s, y: by - 40 * s, w: 140 * s, h: H - by + 40 * s });
 }
@@ -3292,6 +3301,9 @@ const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h
 const overlapArea = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 function drawNote(pose) {
   const n = game.note; if (!n || game.t > n.until || game.state === 'finish') return; // v8.2：完賽後成績表就有主播 / 賽評，不用再浮一個註解在旁邊
+  // v9（使用者手機直式：躲老闆時倒地，提示瞬間閃一下）：註解每一幀重挑位置，一下放得下、一下擋到老闆彈窗，就一閃一閃。
+  //   改成：這句註解只要讓開過一次，就整句不再出現（下一句新的註解才重新判斷）
+  if (n.blocked) return;
   const vis = n.lines.filter(l => game.t >= l.at);
   if (!vis.length) return;
   const head = pose.parts[pose.parts.length - 1];
@@ -3332,12 +3344,13 @@ function drawNote(pose) {
   // 沒有完全空的位置時，挑擋到最少的（擋到彈窗的代價比擋到長頸鹿高）
   if (!pk) pk = options.find(o => o.c === 0) || options.reduce((a, b) => (b.c < a.c ? b : a));
   n.pos = { x: pk.x, y: pk.y, k: pk.k };
-  if (topOcc.concat(mustOcc).some(o => overlapArea({ x: pk.x, y: pk.y, w: pk.bw, h: pk.bh }, o) > 0)) { n.cur = null; return; } // v8：會擋到老闆 / 陣亡提示就先讓開
+  if (topOcc.concat(mustOcc).some(o => overlapArea({ x: pk.x, y: pk.y, w: pk.bw, h: pk.bh }, o) > 0)) { n.cur = null; if (n.shown) n.blocked = true; return; } // v8：會擋到老闆 / 陣亡提示就先讓開；v9：已經出現過的就整句收掉，不再閃回來
   // 換位置時滑過去，不要瞬移
   n.cur = n.cur || { x: pk.x, y: pk.y };
   n.cur.x += (pk.x - n.cur.x) * 0.25; n.cur.y += (pk.y - n.cur.y) * 0.25;
   if (mustOcc.some(o => overlapArea({ x: n.cur.x, y: n.cur.y, w: pk.bw, h: pk.bh }, o) > 0)) return; // 滑過去的途中經過獎金也先不畫
   const bx = Math.round(n.cur.x), by = Math.round(n.cur.y), bh = pk.show.length * lh + 12;
+  n.shown = true;
   const alpha = clamp((n.until - game.t) / 0.3, 0, 1) * clamp((game.t - n.born) / 0.12, 0, 1);
   ctx.globalAlpha = alpha;
   if (onScreen) {
@@ -3679,6 +3692,12 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.09 - v10', items: [
+    '電腦版：按鍵說明的 ← → 改成各自亮燈；完賽和「跳過訓練」的按鈕跟著畫面一起放大',
+    '主管巡視：預告縮短成 3 秒，預告和「主管在看」分得更清楚',
+    '躲老闆時倒地，主播的提示不會再一閃一閃',
+    '手機直式：打卡機的字更清楚；看不到員工編號公告時，打卡機上方會顯示編號',
+  ] },
   { v: '2026.11.09 - v9', items: [
     '電腦版：字和提示框依螢幕大小自動放大；畫面底部加了按鍵說明，按下去那格會亮',
     '手機直式：按鍵移到草地上，畫面變大，長頸鹿也大一點',
