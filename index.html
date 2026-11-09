@@ -77,6 +77,20 @@
   .skipbtn[hidden] { display: none; }
   @keyframes keyhint { 0%, 100% { box-shadow: 0 0 0 0 rgba(242,181,58,0); } 50% { box-shadow: 0 0 0 5px rgba(242,181,58,.85); } }
   .key.hint, .tbtn.hint { border-color: #E2A02E; animation: keyhint 1s ease-in-out infinite; }
+  .tab .betaTag { font: normal 11px "Segoe UI", "PingFang TC", sans-serif; color: #fff; background: #2F5597; border-radius: 3px; padding: 0 5px; }
+  #app.big .tab .betaTag { font-size: 13px; }
+  /* 即時對戰：暱稱視窗（像 Excel 的對話方塊） */
+  .vsdlg { position: absolute; inset: 0; background: rgba(0,0,0,.18); display: flex; align-items: center; justify-content: center; z-index: 20; }
+  .vsdlg[hidden] { display: none; }
+  .vsbox { width: min(340px, calc(100% - 32px)); background: #fff; border: 1px solid #8A8A8A; box-shadow: 0 6px 24px rgba(0,0,0,.25); font: 14px "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif; color: #222; }
+  .vshead { background: var(--green); color: #fff; font-weight: 700; padding: 8px 12px; }
+  .vsbox label { display: block; padding: 12px 12px 6px; }
+  .vsbox input { display: block; width: calc(100% - 24px); margin: 0 12px; box-sizing: border-box; font-size: 16px; padding: 6px 8px; border: 1px solid #A6A6A6; border-radius: 2px; }
+  .vsbox input:focus { outline: 2px solid var(--green); outline-offset: -1px; }
+  .vsnote { padding: 8px 12px 0; font-size: 12px; color: #666; }
+  .vsbtns { display: flex; justify-content: flex-end; gap: 8px; padding: 12px; }
+  .vsbtns button { font: inherit; padding: 5px 14px; border: 1px solid #A6A6A6; background: #F2F2F2; border-radius: 2px; cursor: pointer; }
+  .vsbtns button.ok { background: var(--green); border-color: var(--green); color: #fff; font-weight: 700; }
   .againbtn .k { font: 10px Consolas, monospace; border: 1px solid rgba(255,255,255,.6); border-radius: 3px; padding: 0 3px; }
   body.touch .againbtn .k { display: none; }
   /* v7 手機版：螢幕按鍵（電腦版不顯示） */
@@ -214,11 +228,20 @@
       <div class="tbtn tb-down" data-touch="KeyL"><b>↘&#xFE0E;</b><small>低頭</small></div>
       <div class="tbtn tb-bite" data-touch="KeyK"><b data-on="放" data-off="咬">咬</b><small data-on="咬住中" data-off="點一下">點一下</small></div>
     </div>
-    <div class="tbtn tb-reset" id="tReset" data-touch="KeyR">↺ 回存檔點<small>按住</small></div></div>
+    <div class="tbtn tb-reset" id="tReset" data-touch="KeyR">↺ 回存檔點<small>按住</small></div>
+    <!-- 即時對戰：輸入暱稱（第一次進分頁、或在對戰中再點一次分頁） -->
+    <div id="vsDlg" class="vsdlg" hidden><form id="vsForm" class="vsbox" autocomplete="off">
+      <div class="vshead">即時對戰（測試中）</div>
+      <label for="vsName">你的暱稱（同事看得到，最多 12 個字）</label>
+      <input id="vsName" maxlength="12" enterkeyhint="go" placeholder="例如：隔壁小陳">
+      <div class="vsnote">進去後會跟正在對戰分頁的人一起等開門。</div>
+      <div class="vsbtns"><button type="button" id="vsCancel">先不要</button><button type="submit" class="ok">進入等候區</button></div>
+    </form></div></div>
   <div class="tabs" id="tabs">
     <div class="tab" data-mode="tutorial" title="新人訓練：學會基本操作（不計時）">新人訓練 <span class="k">0</span></div>
     <div class="tab on" data-mode="normal">第 1 關 <span class="k">1</span></div>
     <div class="tab soon" id="lv2Tab" title="第 2 關製作中：新同事報到中，敬請期待">第 2 關 <span class="soonTag">製作中</span> <span class="k">2</span></div>
+    <div class="tab" data-mode="versus" id="vsTab" title="即時對戰（測試中）：跟同事同時跑，看得到對方、不會互撞">即時對戰 <span class="betaTag">測試中</span></div>
     <div class="tab" data-view="ach" id="achTab">成就 <span class="k">3</span></div>
     <div class="tab" data-view="skin" id="skinTab">造型 <span class="k">4</span></div>
     <div class="tab" data-view="log" id="logTab">更新紀錄 <span class="k">5</span></div>
@@ -479,7 +502,7 @@ const store = {
   json(k, d) { try { return JSON.parse(this.get(k)) || d; } catch (e) { return d; } },
   setJson(k, v) { this.set(k, JSON.stringify(v)); },
 };
-const bestKey = () => game.mode === 'daily' ? 'giraffe_best_daily_' + todayStr() : 'giraffe_best_normal';
+const bestKey = () => game.mode === 'daily' ? 'giraffe_best_daily_' + todayStr() : game.mode === 'versus' ? 'giraffe_best_vs' : 'giraffe_best_normal'; // 即時對戰從門口等候區起跑，另外記
 const stats = store.json('giraffe_stats', {});
 const spots = store.json('giraffe_spots', {});
 const achieved = store.json('giraffe_ach', {});
@@ -580,6 +603,10 @@ const game = {
   best: null, hlPending: null, hlPlay: null, graves: [], runSpots: {}, flags: {}, view: 'game', deathKind: null,
 };
 const keys = {};
+// v12 即時對戰（測試中）的連線狀態；程式在檔案後面「即時對戰」段落
+const VS_LOBBY_X = -7.5; // 等候區：公司大門（-3）前面
+const VS = { st: 'off', err: '', uid: null, db: null, off: 0, online: false, name: '', me: { st: 'wait' }, players: {}, ghosts: {}, race: null, raceId: null, names: {}, res: {}, startLocal: 0, openAt: -9, lastKey: performance.now(), afk: false, sendAt: 0, pushAt: 0, readyAt: -9, panel: null };
+try { VS.name = localStorage.getItem('giraffe_vsname') || ''; } catch (e) { /* 私密模式 */ }
 const contacts = { head: new Map(), legs: [0, 0, 0, 0], headArch: 0, headHard: 0, hurdleHit: null, pieHit: false };
 const pendingEvents = [];
 
@@ -682,8 +709,10 @@ function buildProps() {
   st.chairs.forEach(([cx, nb], i) => { for (let j = 0; j < nb; j++) box(cx, bs / 2 + j * bs); game.props.push({ type: 'chair', body: makeChair(cx, nb * bs, { s: TUNE.stackS, face: st.faces[i], wheels: true, wheelFric: 0.35, damp: 1.4 }) }); });
   for (let c = 0; c < st.wallCols; c++) for (let rr = 0; rr < st.wallRows; rr++) box(st.wallX + c * bs, bs / 2 + rr * bs);
   // 打卡卡片：一張是你的，兩張是長得很像的
+  const unseed = game.vsSeed != null ? seedRandom(game.vsSeed) : null; // v12 即時對戰：同一場大家的員工編號、卡片順序一樣（公平）
   const cd = LEVEL.cards, mine = makeCardCode(), decoys = mine.like;
   const codes = [{ code: mine.code, mine: true }, ...decoys.map(c => ({ code: c, mine: false }))].sort(() => Math.random() - 0.5);
+  if (unseed) unseed();
   game.cardCode = mine.code;
   codes.forEach((c, i) => {
     const x = cd.x + (i - 1) * cd.gap;
@@ -827,7 +856,7 @@ function spawn(fromRespawn) {
   commitHighlight();
   destroyGiraffe();
   removePie();
-  const cp = game.tut ? { x: tutSpawnX(), y: 0 } : LEVEL.checkpoints[game.cp]; // v8.9：新人訓練中回到這一小段的開頭
+  const cp = game.tut ? { x: tutSpawnX(), y: 0 } : game.vsHold ? { x: VS_LOBBY_X, y: 0 } : LEVEL.checkpoints[game.cp]; // v8.9：新人訓練中回到這一小段的開頭；v12：即時對戰還沒開門 → 回等候區
   if (game.tut && game.tut.stage === 4) game.tut.stage = 3; // 識別證會掛回去，要重新叼
   game.g = buildGiraffe(cp.x, cp.y);
   game.state = 'run'; game.fallTimer = 0; game.upTimer = 0; game.buffer = []; game.replay = null; game.replayDelay = 0;
@@ -841,6 +870,7 @@ function spawn(fromRespawn) {
   buildProps();
   game.flags.ref = false; game.flags.stock = false; game.flags.seatDone = false; game.flags.cardHint = false;
   if (game.tut) { if (!fromRespawn) talk([['主播', '新人訓練開始！'], ['賽評', '這段不計時，放心摔']], 3.2, 3); }
+  else if (game.vsHold) { if (!fromRespawn) talk([['主播', '歡迎來到即時對戰！'], ['賽評', '跳起來碰簽到機，人到齊就開門']], 3.6, 1); }
   else if (fromRespawn) say('respawn', 2.4, 1); else say('start', 3.2, 0);
   if (game.tip && game.tip.until === Infinity) game.tip.until = game.t + 4.5; // 復活後提示再留幾秒
   updateCopyBtn();
@@ -848,7 +878,9 @@ function spawn(fromRespawn) {
 
 function loadMode(mode, forceIds) {
   const tut = mode === 'tutorial'; if (tut) mode = 'normal'; // v8.9 新人訓練：世界一樣是第 1 關，從起跑線左邊開始
-  game.mode = mode; game.tut = null;
+  const vs = mode === 'versus'; // v12 即時對戰：世界一樣是第 1 關，從公司大門口的等候區開始，人到齊才開門
+  if (!vs && game.vs) vsLeave();
+  game.mode = mode; game.tut = null; game.vs = vs; game.vsHold = vs; game.vsSeed = null;
   game.cfg = makeCfg(mode, forceIds);
   game.g = null; game.pie = null; game.refCells = []; game.refRails = [];
   buildWorld();
@@ -856,7 +888,9 @@ function loadMode(mode, forceIds) {
   game.boss = { phase: 'idle', t: 0, next: rnd(TUNE.bossFirst[0], TUNE.bossFirst[1]), count: 0, plan: bossPlan() };
   game.stageCard = tut ? { at: game.t, dur: 2.8, color: '#2F5597', bg: '#EAF1FB', title: '新人訓練', sub: '（不支薪）', lines: ['先學幾個基本動作，刷卡進公司', '這段不計時'] } : null; // v9（使用者：玩家不知道剛剛是教學）：開頭大字卡
   if (tut) { game.tut = { stage: 0, at: game.t, doneAt: -9, neckT: 0 }; game.gateOpenAt = 0; game.tutGate = game.ground.createFixture(pl.Box(0.12, 7, V(LEVEL.tut.gate, 7), 0), { friction: 0.3, userData: { kind: 'gate' } }); }
+  if (vs) { game.gateOpenAt = 0; game.tutGate = game.ground.createFixture(pl.Box(0.12, 7, V(LEVEL.tut.gate, 7), 0), { friction: 0.3, userData: { kind: 'gate' } }); }
   spawn(false);
+  if (vs) vsEnter();
   document.querySelectorAll('.tab[data-mode]').forEach(t => t.classList.toggle('on', t.dataset.mode === (tut ? 'tutorial' : mode)));
   document.getElementById('achTab').classList.remove('on');
   document.getElementById('logTab').classList.remove('on');
@@ -888,7 +922,7 @@ function control() {
   const grav = -cfg.gravity;
   const hv = g.head.getLinearVelocity(); g.preHeadSpeed = Math.max(0, -hv.y); // 往下砸的速度才算
 
-  if ((dir || neckIn || keys.KeyW || keys.KeyKraw) && !game.started && game.state === 'run' && !game.tut) game.started = true; // v8.9：新人訓練不計時，走進第 1 關（過 0 m）才開始
+  if ((dir || neckIn || keys.KeyW || keys.KeyKraw) && !game.started && game.state === 'run' && !game.tut && !game.vsHold) game.started = true; // v8.9：新人訓練不計時，走進第 1 關（過 0 m）才開始
   if (dir || neckIn || keys.KeyW || keys.KeyKraw) game.idle = 0; else game.idle += DT;
 
   const a = normAng(g.torso.getAngle());
@@ -1803,6 +1837,7 @@ function finish() {
   if (game.falls + game.deaths >= 20) award('fall10');
   updateCopyBtn();
   game.result.talk = finishTalk(game.result);
+  if (game.vs) vsFinished();
   if (game.best && game.best.frames.length > 20) game.hlPlay = { frames: game.best.frames, t: 0 };
 }
 
@@ -1875,7 +1910,7 @@ function copyResult() {
 }
 // 結算畫面右下角的「複製成績」按鈕（只在完賽時出現）
 const copyBtn = () => document.getElementById('copyBtn');
-function updateCopyBtn() { const show = game.state === 'finish' && game.result && game.view === 'game' && !rewardShowing(); const b = copyBtn(), a = document.getElementById('againBtn'); if (b) b.hidden = !show; if (a) a.hidden = !show; const sk = document.getElementById('skipBtn'); if (sk) sk.hidden = !(game.tut && game.view === 'game' && !game.gateOpenAt); }
+function updateCopyBtn() { const show = game.state === 'finish' && game.result && game.view === 'game' && !rewardShowing(); const b = copyBtn(), a = document.getElementById('againBtn'); if (b) b.hidden = !show; if (a) { a.hidden = !show; a.firstChild.textContent = game.vs ? '回門口等下一場 ' : '再加一次班 '; } const sk = document.getElementById('skipBtn'); if (sk) sk.hidden = !(game.tut && game.view === 'game' && !game.gateOpenAt); }
 function placeCopyBtn() {
   const b = copyBtn(), rr = game.resultRect; if (!b || !rr) return;
   // v9：成績表是用畫面的邏輯座標算的，按鈕是網頁元素：位置乘回顯示比例、按鈕也一起放大（不然電腦版按鈕又小又跑到左上）
@@ -1930,6 +1965,7 @@ function frame(now) {
     game.rHoldP = checkRHold();
     if (game.hlPlay) { game.hlPlay.t += dt * 0.5 * 60; if (game.hlPlay.t >= game.hlPlay.frames.length - 1) game.hlPlay.t = 0; }
   }
+  if (game.vs) vsFrame();
   updateCamera(dt);
   leanSmooth(dt);
   render();
@@ -2065,6 +2101,7 @@ function render() {
   levelOcc = []; mustOcc = []; tutKeyOcc = [];
   drawLevel(pose);
   drawTutScene(); levelOcc.push(...tutKeyOcc); // 主播註解也別蓋住這一段要用的東西
+  if (game.vs) vsDrawGhosts();
   drawGiraffe(pose);
   for (const pr of game.props || []) if (pr.type === 'card') drawProp(pr);
   if (UI.leanBar && !pose.recorded) drawLeanBar(pose);
@@ -2083,11 +2120,13 @@ function render() {
   toasts.forEach(r => occupied.push(r));
   if (game.replay) { occupied.push({ x: ROW_W + 16, y: HEAD_H + 36, w: 320, h: 28 }); topOcc.push(occupied[occupied.length - 1]); } // 重播橫條也算高優先：主播註解不會被它蓋住
   if (game.state === 'finish' && game.result) occupied.push({ x: ROW_W, y: HEAD_H, w: W, h: H });
+  if (game.vs) vsDrawHud();
   drawStageCard(); // 先畫大字卡並登記位置，主播註解會避開
   drawNote(pose);
   drawToasts(toasts);
   if (game.replay) drawBanner('慢動作重播 0.4x', IS_TOUCH ? '點畫面跳過' : '任意鍵跳過', '#D13438', '#FCE4E4');
-  if (game.state === 'finish' && game.result) { if (rewardShowing()) drawReward(); else drawResult(); }
+  if (game.state === 'finish' && game.result) { if (rewardShowing()) drawReward(); else if (game.vs) vsDrawResult(); else drawResult(); }
+  if (game.vs) vsDrawCountdown();
 }
 
 function drawGrid() {
@@ -2378,16 +2417,17 @@ function drawTutScene() {
   // 門禁讀卡機（柱子 + 機器）
   { const r = tu.reader, on = game.gateOpenAt && game.t - game.gateOpenAt < 2; ctx.fillStyle = '#A6A6A6'; ctx.fillRect(sx(r.x - 0.05), sy(r.y - 0.4), 0.1 * ppm, (r.y - 0.4) * ppm);
     ctx.fillStyle = '#404040'; roundRect(sx(r.x - 0.3), sy(r.y + 0.4), 0.6 * ppm, 0.8 * ppm, 4); ctx.fill();
-    ctx.fillStyle = on || game.gateOpenAt ? '#70E070' : '#E05050'; ctx.beginPath(); ctx.arc(sx(r.x), sy(r.y + 0.18), Math.max(3, 0.08 * ppm), 0, 7); ctx.fill();
+    ctx.fillStyle = on || game.gateOpenAt || (game.vs && VS.me.st === 'ready') ? '#70E070' : '#E05050'; ctx.beginPath(); ctx.arc(sx(r.x), sy(r.y + 0.18), Math.max(3, 0.08 * ppm), 0, 7); ctx.fill();
     ctx.fillStyle = '#7F7F7F'; ctx.fillRect(sx(r.x - 0.18), sy(r.y - 0.05), 0.36 * ppm, 0.12 * ppm);
-    txt('門禁', sx(r.x - 0.55), sy(r.y - 0.1), fs(0.22), '#404040');
+    txt(game.vs ? '簽到機' : '門禁', sx(r.x - (game.vs ? 0.7 : 0.55)), sy(r.y - 0.1), fs(0.22), '#404040');
     if (game.tut && game.tut.stage >= 3 && !game.gateOpenAt) tutKeyOcc.push({ x: sx(r.x - 1.0), y: sy(r.y + 0.6), w: 1.45 * ppm, h: 1.0 * ppm }); }
   // 公司入口：玻璃門（刷卡後往上收）
   { const gx = tu.gate, k = game.gateOpenAt ? clamp((game.t - game.gateOpenAt) / 0.5, 0, 1) : 0, lift = k * 6.6;
     ctx.fillStyle = 'rgba(189,215,238,0.75)'; ctx.strokeStyle = '#5B9BD5'; ctx.lineWidth = 2;
     ctx.fillRect(sx(gx - 0.12), sy(7 + lift), 0.24 * ppm, (7 - Math.min(lift, 6.6)) * ppm); ctx.strokeRect(sx(gx - 0.12), sy(7 + lift), 0.24 * ppm, (7 - Math.min(lift, 6.6)) * ppm);
     if (!game.gateOpenAt) { ctx.save(); ctx.translate(sx(gx), sy(2.2)); ctx.rotate(-Math.PI / 2); txt('公司入口', 0, 0, fs(0.2), '#2F5597'); ctx.restore(); } // 直寫在玻璃門上（矮畫面也看得到）
-    if (game.gateOpenAt && game.t - game.gateOpenAt < 1.6) txt('嗶！', sx(tu.reader.x - 1.2), sy(tu.reader.y + 0.3), fs(0.5), '#217346'); }
+    if (game.vs) vsDrawScene();
+    if (game.gateOpenAt && game.t - game.gateOpenAt < 1.6 && !game.vs) txt('嗶！', sx(tu.reader.x - 1.2), sy(tu.reader.y + 0.3), fs(0.5), '#217346'); }
 }
 function drawBadge(t) { // 新人識別證：白底、藍色抬頭、大頭照、名字
   const bd = LEVEL.tut.badge, w = bd.hw, h = bd.hh;
@@ -3695,6 +3735,11 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [ // v10 起（使用者要求）：一天一筆；同一天再發新版就把內容加進當天那筆、v 改成最新版本號（from 是當天第一版，頁面標題顯示「v1 ~ v最新」，看得出那天改了幾版；狀態列只顯示最新版本）。只寫玩家感覺得到的改變，不寫開發者事項和細部設定值
+  { v: '2026.11.10 - v1', items: [
+    '新增「即時對戰（測試中）」分頁：跟同事同時跑，看得到對方、不會互撞',
+    '在公司門口等，跳起來用頭碰簽到機就算準備好，人到齊倒數開門',
+    '跑完有「今日加班排行」，看誰最早下班',
+  ] },
   { v: '2026.11.09 - v11', from: 1, items: [
     '新增「新人訓練」：第一次玩先學基本動作（可跳過，按 0 重玩），開頭和結束都有大字提示',
     '電腦版：字依螢幕大小自動放大，畫面底部有按鍵說明',
@@ -3837,7 +3882,7 @@ function updateHud() {
   document.body.classList.toggle('padoff', game.view === 'game' && (game.state === 'dead' || !!game.replay || game.state === 'finish')); // 完賽後也藏（不用操作，成績表和「再加一次班」才不會被擋） // v9（使用者：主管抓到後的陣亡 / 重播，對話框被按鍵擋住）：陣亡到重播結束先藏手機按鍵
   const bossOn = game.boss.phase === 'warn' || game.boss.phase === 'look';
   st.classList.toggle('boss', bossOn);
-  st.textContent = bossOn ? (game.boss.mode === 'seat' ? '主管巡視中…' : '老闆正在檢視此活頁簿…') : game.replay ? '重播中…' : game.state === 'finish' ? '完賽' : game.state === 'dead' ? '選手陣亡' : game.state === 'down' ? '選手倒地' : game.started ? '計算中…' : '就緒';
+  st.textContent = bossOn ? (game.boss.mode === 'seat' ? '主管巡視中…' : '老闆正在檢視此活頁簿…') : game.replay ? '重播中…' : game.state === 'finish' ? '完賽' : game.state === 'dead' ? '選手陣亡' : game.state === 'down' ? '選手倒地' : game.started ? '計算中…' : game.vsHold ? '等候' : '就緒'; // 手機直式狀態列很窄，兩個字才放得下
   const n = game.note;
   let f = FORMULAS[Math.floor(game.t / 6) % FORMULAS.length];
   if (game.boss.phase === 'look') f = game.boss.formula || BOSS_FORMULA[0];
@@ -3875,6 +3920,7 @@ function toggleView(v) {
   updateCopyBtn();
 }
 window.addEventListener('keydown', e => {
+  if (e.target && /^(INPUT|TEXTAREA|BUTTON)$/.test(e.target.tagName) && e.target.closest('#vsDlg')) return; // 即時對戰：輸入暱稱時不算遊戲按鍵
   if (game.view === 'skin' && (e.code === 'ArrowUp' || e.code === 'ArrowDown')) { e.preventDefault(); selectSkin((game.skinSel ?? 0) + (e.code === 'ArrowUp' ? -1 : 1)); game.skinEnsure = true; return; } // 造型分頁：上下選
   if (e.code === 'ArrowDown') { e.preventDefault(); return; } // 不用，但別讓頁面捲動
   const code = KEYMAP[e.code];
@@ -3886,6 +3932,7 @@ window.addEventListener('keydown', e => {
 });
 // 按下一個按鍵（鍵盤和手機按鈕共用）
 function pressKey(code) {
+  VS.lastKey = performance.now(); // v12 即時對戰：掛機判定
   if (game.view === 'game' && /^Key/.test(code) && nextReward()) return; // v8：成就卡：任意鍵看下一張
   if (code === 'KeyK') { keys.KeyKraw = true; if (game.view === 'game') setBite(!keys.KeyK); setKeyUi('KeyK', true); return; }
   keys[code] = true;
@@ -3924,7 +3971,7 @@ window.addEventListener('blur', () => { const bite = keys.KeyK; for (const k in 
 document.addEventListener('visibilitychange', () => { if (document.hidden) window.dispatchEvent(new Event('blur')); }); // 手機切到別的 App
 function setKeyUi(code, on) { const el = document.querySelector('.key[data-code="' + code + '"]'); if (el) el.classList.toggle('on', on); }
 // v8：在成就 / 造型 / 更新紀錄頁點「第 1 關」= 回到遊戲接著跑（原本會整關重來）；已經在遊戲畫面點才是重新開始
-document.querySelectorAll('.tab[data-mode]').forEach(t => t.addEventListener('click', () => { const cur = game.tut ? 'tutorial' : game.mode; if (game.view !== 'game' && cur === t.dataset.mode) toggleView(game.view); else if (t.dataset.mode === 'normal') skipTut(); else loadMode(t.dataset.mode); }));
+document.querySelectorAll('.tab[data-mode]').forEach(t => t.addEventListener('click', () => { if (t.dataset.mode === 'versus' && game.vs && game.view === 'game') { vsAskName(); return; } const cur = game.tut ? 'tutorial' : game.mode; if (game.view !== 'game' && cur === t.dataset.mode) toggleView(game.view); else if (t.dataset.mode === 'normal') skipTut(); else loadMode(t.dataset.mode); }));
 function skipTut() { if (game.tut) store.set('giraffe_tut', '1'); if (game.view !== 'game') toggleView(game.view); loadMode('normal'); } // v8.9：跳過訓練也算（之後重新整理直接進第 1 關）
 document.getElementById('skipBtn').addEventListener('click', skipTut);
 document.getElementById('lv2Tab').addEventListener('click', lv2Teaser);
@@ -3936,7 +3983,7 @@ if (IS_TOUCH) {
   document.body.classList.add('touch'); document.documentElement.classList.add('touch');
   // v8：iPhone Safari 會無視 user-scalable=no，點兩下還是會放大、整頁被推走（使用者實測）。擋掉連點、雙指縮放，頁面被捲動就拉回來
   let lastTouchEnd = 0;
-  document.addEventListener('touchend', e => { const now = performance.now(); if (now - lastTouchEnd < 350 && !e.target.closest('.copybtn, .tab')) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
+  document.addEventListener('touchend', e => { const now = performance.now(); if (now - lastTouchEnd < 350 && !e.target.closest('.copybtn, .tab, #vsDlg')) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
   document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
   ['gesturestart', 'gesturechange'].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
   document.addEventListener('touchmove', e => { if (e.touches.length > 1 || !e.target.closest('.logwrap, .scroll')) e.preventDefault(); }, { passive: false });
@@ -4004,7 +4051,365 @@ if (IS_TOUCH && innerHeight > innerWidth && !game.tut) setTimeout(() => toast('�
 // 測試用：同步跑 n 步
 function sim(n) { for (let i = 0; i < n; i++) { if (game.replay) afterReplay(); if (game.replayDelay > 0 && game.state === 'dead') { /* 讓倒數照跑 */ } step(); } }
 function spawnAt(x, y) { destroyGiraffe(); removePie(); game.g = buildGiraffe(x, y); game.state = 'run'; game.buffer = []; game.replay = null; game.replayDelay = 0; game.cam.x = x + 2; game.chase.x = x - TUNE.chaseGap; game.prevHeadHard = 1; }
-window.__game = { uiK: () => uiK, finish, nextReward, renderLog, renderSkins, renderAchievements, selectSkin, checkRHold, pressKey, releaseKey, setSkin: id => { skin = id; }, setHeadVis: v => { HEAD_VIS = v; }, render: () => render(), occ: () => ({ topOcc, mustOcc, tutKeyOcc }), w2s: (x, y) => [sx(x), sy(y), ppm], game, keys, contacts, loadMode, spawn, spawnAt, TUNE, sim, LEVEL, stats, achieved, award, die, copyResult, draw: () => { updateCamera(1); render(); updateHud(); } };
+// ---------- v12 即時對戰（測試中，2026-11-10） ----------
+// 使用者選的做法：即時鬼影（看得到別人、互相穿透），不用房間號碼，打開「即時對戰」分頁的人都在同一個等候區。
+// 公司大門口等：跳起來用頭碰「簽到機」= Ready（頭上 ✔），全員 Ready 才倒數 3、2、1 開門；60 秒沒按鍵 =「掛機中 💤」不等他；
+// 比賽中途進來的人在門後等下一場；同一場的員工編號、老闆出現的位置大家一樣；結束後「今日加班排行」。
+// 連線：Firebase Realtime Database（新加坡），匿名登入；安全規則在 tools/firebase-rules.json。
+// 資料：vs/p/{uid} 玩家狀態（n 暱稱、s 造型、st wait|ready|run|done、a 掛機、r 第幾場、t 時間、f 失誤、x 位置、at）、
+//       vs/q/{uid} 姿勢（10 個剛體的 x,y,角度，每秒 10 次）、vs/race 目前這場（id、seed、at 開門時間、ids 參賽者）
+const FB_CFG = {
+  apiKey: 'AIzaSyAqWuwHC4h23NAUL5AVkmlIAm-pxnnge_s', // 網頁用的公開設定，不是密碼；權限靠安全規則
+  authDomain: 'animals-clock-out.firebaseapp.com',
+  databaseURL: 'https://animals-clock-out-default-rtdb.asia-southeast1.firebasedatabase.app',
+  projectId: 'animals-clock-out',
+  appId: '1:145627341060:web:06aa9a42cd997b04a4b051',
+};
+const FB_VER = '10.12.2';
+const VS_COUNT = 3.5; // 全員到齊後幾秒開門（倒數 3、2、1）
+const VS_AFK = 60;    // 幾秒沒按鍵算掛機
+const VS_EXCUSE = ['八成在倒咖啡', '應該在回訊息', '可能被主管叫走了', '大概在找識別證', '說不定在上廁所', '可能在假裝開會'];
+// 用種子產生亂數（同一場大家一樣）：暫時換掉 Math.random，回傳還原函式
+function seedRandom(seed) {
+  const orig = Math.random; let a = seed >>> 0;
+  Math.random = () => { a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  return () => { Math.random = orig; };
+}
+const vsNow = () => Date.now() + VS.off; // 伺服器時間
+function vsLoadSdk() {
+  if (VS.sdk) return VS.sdk;
+  const one = m => new Promise((res, rej) => { const s = document.createElement('script'); s.src = 'https://www.gstatic.com/firebasejs/' + FB_VER + '/firebase-' + m + '-compat.js'; s.onload = res; s.onerror = () => rej(new Error('載不到連線元件（網路？）')); document.head.appendChild(s); });
+  VS.sdk = one('app').then(() => one('auth')).then(() => one('database'));
+  VS.sdk.catch(() => { VS.sdk = null; });
+  return VS.sdk;
+}
+function vsFail(e) { VS.st = 'err'; const c = (e && (e.code || e.message)) || ''; VS.err = /permission|PERMISSION/.test(c) ? '沒有權限' : /network|NETWORK|載不到/.test(c) ? '網路連不上' : c || '未知錯誤'; console.warn('[即時對戰]', e); }
+async function vsConnect() {
+  if (VS.st === 'conn' || VS.st === 'ok') { vsPush(); return; }
+  VS.st = 'conn'; VS.err = '';
+  try {
+    await vsLoadSdk();
+    const fb = window.firebase; if (!fb.apps.length) fb.initializeApp(FB_CFG);
+    const auth = fb.auth();
+    await auth.setPersistence(fb.auth.Auth.Persistence.SESSION); // 每個分頁一個身分（同一台電腦開兩個分頁 = 兩個人）
+    if (!auth.currentUser) await auth.signInAnonymously();
+    VS.uid = auth.currentUser.uid; const db = VS.db = fb.database();
+    db.ref('.info/serverTimeOffset').on('value', s => { VS.off = s.val() || 0; });
+    db.ref('.info/connected').on('value', s => { VS.online = !!s.val(); if (VS.online && game.vs) vsPush(); });
+    db.ref('vs/p').on('value', s => { VS.players = s.val() || {}; vsNoteResults(); vsCheckStart(); }, vsFail);
+    const q = db.ref('vs/q'), onQ = s => vsGotPose(s.key, s.val());
+    q.on('child_added', onQ, vsFail); q.on('child_changed', onQ); q.on('child_removed', s => { delete VS.ghosts[s.key]; });
+    db.ref('vs/race').on('value', s => vsGotRace(s.val()), vsFail);
+    VS.st = 'ok';
+    vsPush();
+  } catch (e) { vsFail(e); }
+}
+// 把自己的狀態寫上去（狀態改變時、比賽中每秒一次）
+function vsPush() {
+  if (VS.st !== 'ok' || !game.vs || !VS.uid) return;
+  const m = VS.me, d = { n: (VS.name || '無名氏').slice(0, 12), s: String(skin).slice(0, 24), st: m.st, a: !!VS.afk, at: firebase.database.ServerValue.TIMESTAMP };
+  if (m.r) d.r = m.r; if (m.t != null) d.t = m.t; if (m.f != null) d.f = m.f;
+  if (game.g) d.x = Math.round(game.g.torso.getPosition().x * 10) / 10;
+  const ref = VS.db.ref('vs/p/' + VS.uid);
+  ref.onDisconnect().remove(); VS.db.ref('vs/q/' + VS.uid).onDisconnect().remove(); // 關分頁 / 斷線：自動移出等候區
+  ref.set(d).catch(vsFail);
+  VS.pushAt = performance.now();
+}
+function vsSetSt(st, extra) { VS.me = Object.assign({}, VS.me, { st }, extra || {}); vsPush(); }
+// 進「即時對戰」分頁（loadMode 呼叫）
+function vsEnter() {
+  VS.me = { st: 'wait' }; VS.raceId = null; VS.startLocal = 0; VS.openAt = -9; VS.afk = false; VS.lastKey = performance.now(); VS.panel = null;
+  if (!VS.name) vsAskName(); else vsConnect();
+}
+// 離開分頁：把自己從等候區移掉（其他人不用等）
+function vsLeave() {
+  if (VS.db && VS.uid) { VS.db.ref('vs/p/' + VS.uid).remove(); VS.db.ref('vs/q/' + VS.uid).remove(); }
+  VS.me = { st: 'wait' }; VS.raceId = null; VS.startLocal = 0;
+  document.getElementById('vsDlg').hidden = true;
+}
+function vsAskName() {
+  const d = document.getElementById('vsDlg'), i = document.getElementById('vsName');
+  i.value = VS.name; d.hidden = false; for (const k in keys) keys[k] = false;
+  setTimeout(() => { i.focus(); i.select(); }, 30);
+}
+document.getElementById('vsForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const i = document.getElementById('vsName'), n = i.value.replace(/\s+/g, ' ').trim().slice(0, 12);
+  if (!n) { i.placeholder = '請輸入暱稱'; i.focus(); return; }
+  VS.name = n; store.set('giraffe_vsname', n);
+  document.getElementById('vsDlg').hidden = true; i.blur();
+  VS.lastKey = performance.now();
+  if (game.vs) vsConnect();
+});
+document.getElementById('vsCancel').addEventListener('click', () => { document.getElementById('vsDlg').hidden = true; if (!VS.name && game.vs) loadMode('normal'); });
+// 收到別人的姿勢：存最近幾筆，畫的時候往回 0.12 秒內插（網路有快有慢，看起來才順）
+function vsGotPose(uid, str) {
+  if (uid === VS.uid || typeof str !== 'string') return;
+  const a = str.split(',').map(Number); if (a.length !== 30 || a.some(v => !isFinite(v))) return;
+  const gh = VS.ghosts[uid] || (VS.ghosts[uid] = { buf: [], ropes: {} });
+  gh.buf.push({ t: performance.now(), p: a }); if (gh.buf.length > 10) gh.buf.shift();
+}
+function vsGhostParts(gh) {
+  const b = gh.buf; if (!b.length) return null;
+  const rt = performance.now() - 120; let A = b[0], B = b[0];
+  for (let i = 0; i < b.length; i++) { if (b[i].t <= rt) { A = b[i]; B = b[Math.min(i + 1, b.length - 1)]; } }
+  const f = B.t > A.t && B.t - A.t < 600 ? clamp((rt - A.t) / (B.t - A.t), 0, 1) : 1, P = [];
+  for (let k = 0; k < 30; k += 3) P.push({ x: A.p[k] + (B.p[k] - A.p[k]) * f, y: A.p[k + 1] + (B.p[k + 1] - A.p[k + 1]) * f, a: A.p[k + 2] + (B.p[k + 2] - A.p[k + 2]) * f });
+  return P;
+}
+// 這一場開始了：我是參賽者 → 倒數、同一套隨機（員工編號、老闆位置）
+function vsGotRace(r) {
+  VS.race = r;
+  if (!r || !game.vs || !r.ids || !r.ids[VS.uid] || VS.raceId === r.id || VS.me.st !== 'ready' || r.at < vsNow() - 8000) return;
+  VS.raceId = r.id; VS.startLocal = r.at - VS.off; VS.res = {};
+  VS.names = {}; for (const u in r.ids) VS.names[u] = (VS.players[u] && VS.players[u].n) || '？';
+  game.vsSeed = r.seed;
+  const un = seedRandom(r.seed + 7); game.boss.plan = bossPlan(); un();
+  buildProps();
+  vsSetSt('run', { r: r.id, t: null, f: null });
+  talk([['主播', '人到齊了！準備開門'], ['賽評', '這次一定要準時下班']], 3.2, 2);
+}
+// 記下這一場每個人的成績（他們回門口後狀態會清掉）
+function vsNoteResults() {
+  if (!VS.raceId) return;
+  for (const u in VS.players) { const p = VS.players[u]; if (p.r === VS.raceId && p.st === 'done' && p.t != null) VS.res[u] = { t: p.t, f: p.f || 0 }; }
+  if (VS.me.st === 'done' && VS.me.t != null) VS.res[VS.uid] = { t: VS.me.t, f: VS.me.f || 0 };
+}
+// 我 Ready 了：全員（沒掛機的）都 Ready 就開一場（交易：兩個人同時按也只會開一場）
+function vsCheckStart() {
+  if (VS.st !== 'ok' || !game.vs || VS.me.st !== 'ready' || !VS.players[VS.uid]) return;
+  const ps = VS.players, ids = Object.keys(ps);
+  if (!ids.filter(u => !ps[u].a).every(u => ps[u].st === 'ready')) return;
+  const ready = ids.filter(u => ps[u].st === 'ready'); if (!ready.length) return;
+  const now = vsNow();
+  if (VS.race && VS.race.at > now - 10000) return;
+  VS.db.ref('vs/race').transaction(cur => {
+    if (cur && cur.at > now - 10000) return; // 別人剛開了一場
+    const m = {}; ready.forEach(u => { m[u] = true; });
+    return { id: 'r' + now.toString(36), seed: Math.floor(Math.random() * 1e9), at: now + VS_COUNT * 1000, ids: m };
+  }).catch(vsFail);
+}
+// 每秒：掛機判定（Ready 的人在等別人，不算掛機）、檢查能不能開門
+setInterval(() => {
+  if (!game.vs || VS.st !== 'ok') return;
+  const afk = VS.me.st !== 'ready' && performance.now() - VS.lastKey > VS_AFK * 1000;
+  if (afk !== VS.afk) { VS.afk = afk; vsPush(); }
+  vsCheckStart();
+}, 1000);
+function vsFinished() {
+  VS.me = Object.assign({}, VS.me, { st: 'done', t: Math.round(game.result.t * 100) / 100, f: game.falls + game.deaths });
+  vsNoteResults(); vsPush();
+}
+// 每一幀：送姿勢、簽到、開門
+function vsFrame() {
+  const now = performance.now(), g = game.g;
+  if (VS.st === 'ok' && g && now - VS.sendAt > 100) {
+    VS.sendAt = now;
+    VS.db.ref('vs/q/' + VS.uid).set(g.parts.map(b => { const p = b.getPosition(); return p.x.toFixed(2) + ',' + p.y.toFixed(2) + ',' + b.getAngle().toFixed(2); }).join(','));
+  }
+  if (game.vsHold && VS.me.st === 'wait' && VS.st === 'ok' && g && game.state === 'run') {
+    const h = g.head.getPosition(), r = LEVEL.tut.reader;
+    const jumping = game.t - (g.jumpAt ?? -9) < 1.3 && (!g.jumpLandAt || game.t - g.jumpLandAt < 0.1); // 跟刷門禁一樣：要跳起來（走路煞車頭會甩高，不能算）
+    if (jumping && Math.abs(h.x - r.x) < 1.0 && h.y > r.y - 0.75) {
+      VS.readyAt = game.t; vsSetSt('ready');
+      talk([['主播', '簽到成功！'], ['賽評', '人到齊就開門']], 2.8, 1);
+    }
+  }
+  if (game.vsHold && VS.startLocal && Date.now() >= VS.startLocal) vsOpenGate();
+  if (VS.me.st === 'run' && now - VS.pushAt > 1000) vsPush();
+}
+function vsOpenGate() {
+  if (game.tutGate) { game.ground.destroyFixture(game.tutGate); game.tutGate = null; }
+  game.gateOpenAt = game.t; game.vsHold = false; game.started = true; game.time = 0; VS.openAt = game.t;
+  talk([['主播', '開門了！衝！'], ['賽評', '今天大家都想準時下班']], 3, 2);
+}
+// 名字 → 顏色（每個人固定一種，鬼影名牌用）
+const vsColor = uid => ['#2F5597', '#C55A11', '#7030A0', '#00808C', '#B8860B', '#C00060'][[...uid].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 6];
+function vsStIcon(p) { return p.a ? '💤' : p.st === 'ready' ? '✔' : p.st === 'run' ? '🏃' : p.st === 'done' ? '📋' : '…'; }
+// 鬼影：先畫到另一張畫布，再整張半透明貼上（直接降透明度畫，線條重疊的地方會變深）
+const ghostCv = document.createElement('canvas');
+function vsDrawGhosts() {
+  if (VS.st !== 'ok') return;
+  const list = [];
+  for (const uid in VS.ghosts) { const p = VS.players[uid]; if (uid === VS.uid || !p) continue; const parts = vsGhostParts(VS.ghosts[uid]); if (parts) list.push({ uid, p, parts, gh: VS.ghosts[uid] }); }
+  if (!list.length) return;
+  if (ghostCv.width !== cv.width || ghostCv.height !== cv.height) { ghostCv.width = cv.width; ghostCv.height = cv.height; }
+  const main = ctx, sv = { skin, ropes: game.ropes, dk: game.deathKind, pv: game.previewing };
+  ctx = ghostCv.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, ghostCv.width, ghostCv.height); ctx.setTransform(dpr * uiK, 0, 0, dpr * uiK, 0, 0);
+  game.previewing = true; game.deathKind = null; // 不畫我的提示、不畫我的 KO 眼睛
+  for (const it of list) { skin = SKINS.some(s => s.id === it.p.s) ? it.p.s : 'none'; game.ropes = it.gh.ropes; try { drawGiraffe({ parts: it.parts, recorded: true }); } catch (e) { /* 別人的鬼影畫壞不影響遊戲 */ } }
+  skin = sv.skin; game.ropes = sv.ropes; game.deathKind = sv.dk; game.previewing = sv.pv;
+  ctx = main; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 0.42; ctx.drawImage(ghostCv, 0, 0); ctx.restore();
+  const me = game.g ? game.g.torso.getPosition().x : 0, placed = [];
+  const free = (x, y, w) => { for (let k = 0; k < 8 && placed.some(q => x < q.x + q.w && x + w > q.x && y - 11 < q.y + 22 && y + 11 > q.y); k++) y -= 23; placed.push({ x, y: y - 11, w }); return y; }; // 名牌疊在一起就往上排
+  for (const it of list) {
+    const h = it.parts[it.parts.length - 1], hx = sx(h.x), col = vsColor(it.uid); let hy = sy(h.y) - 0.75 * ppm - 14;
+    const label = it.p.n + (game.vsHold || it.p.a || it.p.st === 'done' ? ' ' + vsStIcon(it.p) : '');
+    ctx.font = 'bold 12px ' + FONT; const w = ctx.measureText(label).width + 14;
+    if (hx < ROW_W + 4 || hx > W - 4) { // 畫面外：邊緣顯示方向和距離
+      if (game.state === 'finish' || game.vsHold) continue; // 看成績、在等候區時不用（等候區面板已經有每個人跑到哪）
+      const right = hx > W - 4, d = Math.round(Math.abs(it.parts[0].x - me)), t = (right ? '' : '◀ ') + it.p.n + ' ' + (right ? '領先' : '落後') + ' ' + d + ' m' + (right ? ' ▶' : '');
+      const tw = ctx.measureText(t).width + 14, x = right ? W - tw - 6 : ROW_W + 6, y = free(x, clamp(hy, HEAD_H + 40, H - 60), tw);
+      ctx.globalAlpha = 0.9; ctx.fillStyle = col; roundRect(x, y - 10, tw, 20, 10); ctx.fill(); ctx.globalAlpha = 1;
+      txt(t, x + tw / 2, y + 1, 'bold 12px ' + FONT, '#fff'); levelOcc.push({ x: x - 2, y: y - 12, w: tw + 4, h: 24 });
+      continue;
+    }
+    hy = free(hx - w / 2, hy, w);
+    ctx.globalAlpha = 0.85; ctx.fillStyle = col; roundRect(hx - w / 2, hy - 10, w, 20, 10); ctx.fill(); ctx.globalAlpha = 1;
+    txt(label, hx, hy + 1, 'bold 12px ' + FONT, '#fff');
+    levelOcc.push({ x: hx - w / 2 - 2, y: hy - 12, w: w + 4, h: 24 });
+  }
+}
+// 等候區的場景：門上的公告、簽到機的提示（drawTutScene 裡畫）
+function vsDrawScene() {
+  const r = LEVEL.tut.reader, gx = LEVEL.tut.gate, fs = n => 'bold ' + Math.round(clamp(ppm * n, 11, 34)) + 'px ' + FONT;
+  if (!game.gateOpenAt) { // 門後的公告（玻璃門看得到）
+    const x1 = gx + 0.35, x2 = gx + 3.2, y1 = 2.6, y2 = 4.3;
+    ctx.fillStyle = '#FFF2CC'; ctx.strokeStyle = '#BF9000'; ctx.lineWidth = 2; roundRect(sx(x1), sy(y2), (x2 - x1) * ppm, (y2 - y1) * ppm, 6); ctx.fill(); ctx.stroke();
+    txt('上班時間未到', sx((x1 + x2) / 2), sy(y2 - 0.55), fs(0.32), '#7F6000'); txt('人到齊才開門', sx((x1 + x2) / 2), sy(y1 + 0.5), fs(0.24), '#7F6000');
+    levelOcc.push({ x: sx(x1) - 4, y: sy(y2) - 4, w: (x2 - x1) * ppm + 8, h: (y2 - y1) * ppm + 8 });
+  }
+  if (game.vsHold && VS.me.st !== 'ready') { // 簽到機上方的提示（簽到後改成頭上掛「✔ 簽到」，這裡不再重複）
+    const done = false, t = '↓ 跳起來用頭碰', y = sy(r.y + 0.75), f = fs(0.24);
+    ctx.font = f; const w = ctx.measureText(t).width + 16, hh = Math.max(20, ppm * 0.42);
+    ctx.fillStyle = done ? '#217346' : '#C55A11'; roundRect(sx(r.x) - w / 2, y - hh / 2, w, hh, 6); ctx.fill();
+    txt(t, sx(r.x), y + 1, f, '#fff');
+    const occ = [{ x: sx(r.x) - w / 2 - 4, y: y - hh / 2 - 4, w: w + 8, h: hh + 8 }, { x: sx(r.x - 0.4), y: sy(r.y + 0.45), w: 0.8 * ppm, h: 0.9 * ppm }];
+    levelOcc.push(...occ); mustOcc.push(...occ); // 主播註解絕對不能蓋住簽到機
+  }
+}
+// 等候區面板 / 比賽中的「業績進度」、自己頭上的 ✔
+function vsDrawHud() {
+  if (game.state === 'finish') return;
+  const ps = VS.players, me = VS.uid;
+  if (game.vsHold && VS.me.st === 'ready' && game.g) { // 自己頭上的 ✔
+    const h = game.g.head.getPosition(), x = sx(h.x), y = sy(h.y) - 0.75 * ppm - 14;
+    ctx.fillStyle = '#217346'; roundRect(x - 24, y - 10, 48, 20, 10); ctx.fill(); txt('✔ 簽到', x, y + 1, 'bold 12px ' + FONT, '#fff');
+    occupied.push({ x: x - 28, y: y - 14, w: 56, h: 28 });
+  }
+  if (game.vsHold) return vsDrawLobby();
+  if (!VS.raceId || VS.st !== 'ok') return;
+  // 比賽中：左上角「業績進度」（跑完的照時間、還在跑的照距離）
+  const rows = Object.keys(VS.names).map(u => {
+    const p = ps[u], res = VS.res[u], mine = u === me;
+    if (res) return { u, n: VS.names[u], k: 0, v: res.t, s: '下班 ' + fmt(res.t), mine };
+    if (p && p.r === VS.raceId && p.st === 'run') return { u, n: VS.names[u], k: 1, v: -(p.x || 0), s: (p.a ? '💤 ' : '') + Math.max(0, Math.round(p.x || 0)) + ' m', mine };
+    return { u, n: VS.names[u], k: 2, v: 0, s: '離開了', mine };
+  }).sort((a, b) => a.k - b.k || a.v - b.v);
+  if (rows.length < 2) return; // 一個人跑就不用排名
+  const f = '12px ' + FONT, fb = 'bold 12px ' + FONT, rh = 17, show = rows.slice(0, 6); ctx.font = fb; const w = Math.min(W - ROW_W - 20, Math.max(150, 24 + Math.max(...show.map(r => ctx.measureText(r.n).width)) + 12 + Math.max(...show.map(r => ctx.measureText(r.s).width)) + 8)), /* 寬度照名字長度，不截成「…」 */ x = ROW_W + 6, y = HEAD_H + 6, h = 20 + show.length * rh + (rows.length > 6 ? rh : 0);
+  ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = C.green; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
+  ctx.fillStyle = C.green; ctx.fillRect(x, y, w, 18); txt('業績進度', x + 8, y + 9.5, fb, '#fff', 'left');
+  show.forEach((r, i) => {
+    const yy = y + 18 + i * rh + rh / 2 + 1;
+    if (r.mine) { ctx.fillStyle = '#E2EFDA'; ctx.fillRect(x + 1, yy - rh / 2, w - 1, rh); }
+    txt((i + 1) + '', x + 8, yy, fb, '#666', 'left'); txt(r.n, x + 24, yy, r.mine ? fb : f, r.mine ? C.green : vsColor(r.u), 'left'); txt(r.s, x + w - 6, yy, f, '#222', 'right');
+  });
+  if (rows.length > 6) txt('還有 ' + (rows.length - 6) + ' 人', x + 8, y + 18 + 6 * rh + rh / 2, f, '#888', 'left');
+  occupied.push({ x: x - 2, y: y - 2, w: w + 4, h: h + 4 }); topOcc.push(occupied[occupied.length - 1]);
+}
+function vsDrawLobby() {
+  const ps = VS.players, me = VS.uid, uids = Object.keys(ps).sort((a, b) => (b === me) - (a === me) || (ps[a].at || 0) - (ps[b].at || 0));
+  const lines = [];
+  const title = '即時對戰（測試中）・等候區';
+  let msg, msgC = '#7F6000';
+  if (VS.st === 'err') { msg = '連不上伺服器（' + VS.err + '），點分頁「即時對戰」重試'; msgC = '#C00000'; }
+  else if (VS.st !== 'ok') msg = !VS.name ? '先輸入暱稱' : '連線中…';
+  else if (VS.startLocal) msg = '人到齊了！準備開門';
+  else {
+    const others = uids.filter(u => u !== me && !ps[u].a), running = others.filter(u => ps[u].st === 'run' || ps[u].st === 'done'), notReady = others.filter(u => ps[u].st !== 'ready');
+    if (VS.me.st !== 'ready') msg = '跳起來用頭碰「簽到機」＝準備好了' + (others.length ? '' : '（一個人也能先跑）');
+    else if (running.length && running.length === notReady.length) msg = '還有 ' + running.length + ' 人在跑 / 看成績，等他們回來';
+    else if (notReady.length) msg = '還在等 ' + notReady.length + ' 個人（' + VS_EXCUSE[Math.floor(game.t / 4) % VS_EXCUSE.length] + '）';
+    else msg = '人到齊了！';
+  }
+  const chips = VS.st === 'ok' ? uids.map(u => { const p = ps[u]; return vsStIcon(p) + ' ' + p.n + (u === me ? '（你）' : '') + (p.st === 'run' && !p.a ? ' ' + Math.max(0, Math.round(p.x || 0)) + 'm' : ''); }).join('　') : '';
+  const maxW = Math.min(W - ROW_W - 16, 560), ft = 'bold 14px ' + FONT, fc = '13px ' + FONT, fm = 'bold 15px ' + FONT;
+  const cl = chips ? wrapText(chips, maxW - 24, fc) : [], ml = wrapText(msg, maxW - 24, fm);
+  ctx.font = ft; let w = ctx.measureText(title).width; ctx.font = fc; cl.forEach(l => { w = Math.max(w, ctx.measureText(l).width); }); ctx.font = fm; ml.forEach(l => { w = Math.max(w, ctx.measureText(l).width); });
+  w = Math.min(maxW, w + 24); const h = 26 + cl.length * 18 + ml.length * 20 + 10;
+  // 位置：上方置中 → 地面下方 → 左上；不要蓋到簽到機、自己的頭、手機按鍵（蓋到頭 0.6 秒以上才換位置，不會一直閃）
+  const r = LEVEL.tut.reader, block = [{ x: sx(r.x - 1.0), y: sy(r.y + 1.1), w: 2.0 * ppm, h: 1.8 * ppm }, ...occupied.filter(o => o.h < 200)]; // occupied：場景裡的東西、手機按鍵、通知
+  const hp = game.g ? game.g.head.getPosition() : null, head = hp ? { x: sx(hp.x) - 0.6 * ppm, y: sy(hp.y) - 0.9 * ppm, w: 1.2 * ppm, h: 1.4 * ppm } : null;
+  const cx = ROW_W + (W - ROW_W - w) / 2, gy = sy(0) + 10, cands = [{ x: cx, y: HEAD_H + 8 }, { x: cx, y: gy + h < H - 4 ? gy : H - h - 4 }, { x: ROW_W + 8, y: HEAD_H + 8 }, { x: W - w - 8, y: HEAD_H + 8 }];
+  for (let k = 1; k <= 8; k++) cands.push({ x: cx, y: HEAD_H + 8 + k * 24 }); // 上方被通知擋住：往下挪
+  const hit = (c, o) => o && c.x < o.x + o.w && c.x + w > o.x && c.y < o.y + o.h && c.y + h > o.y;
+  const bad = c => block.some(o => hit(c, o)), onHead = c => hit(c, head);
+  const P = VS.panel || (VS.panel = { i: 0, headT: 0 });
+  let c = cands[P.i] || cands[0];
+  P.headT = onHead(c) ? P.headT + 1 / 60 : 0;
+  if (bad(c) || P.headT > 0.6) { const j = cands.findIndex(q => !bad(q) && !onHead(q)); if (j >= 0 && j !== P.i) { P.i = j; P.headT = 0; c = cands[j]; } }
+  if (P.i !== 0 && !bad(cands[0]) && !onHead(cands[0])) { P.back = (P.back || 0) + 1 / 60; if (P.back > 1.2) { P.i = 0; P.back = 0; c = cands[0]; } } else P.back = 0;
+  ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.strokeStyle = '#2F5597'; ctx.lineWidth = 2; roundRect(c.x, c.y, w, h, 8); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#2F5597'; roundRect(c.x, c.y, w, 22, 8); ctx.fill(); ctx.fillRect(c.x, c.y + 12, w, 10);
+  txt(title, c.x + w / 2, c.y + 11.5, ft, '#fff');
+  let y = c.y + 26;
+  cl.forEach(l => { txt(l, c.x + w / 2, y + 9, fc, '#333'); y += 18; });
+  ml.forEach(l => { txt(l, c.x + w / 2, y + 10, fm, msgC); y += 20; });
+  occupied.push({ x: c.x - 4, y: c.y - 4, w: w + 8, h: h + 8 }); topOcc.push(occupied[occupied.length - 1]);
+}
+// 倒數 3、2、1 →「開門！」
+function vsDrawCountdown() {
+  if (!VS.startLocal) return;
+  const left = (VS.startLocal - Date.now()) / 1000, cx = ROW_W + (W - ROW_W) / 2, cy = HEAD_H + (H - HEAD_H) * 0.42;
+  if (game.vsHold && left > 0) {
+    const n = Math.ceil(Math.min(left, 3)), k = left - Math.floor(left), s = Math.round(clamp(H * 0.22, 56, 120) * (1 + 0.25 * k));
+    ctx.save(); ctx.globalAlpha = 0.9; txt(String(n), cx + 3, cy + 3, 'bold ' + s + 'px ' + FONT, 'rgba(0,0,0,.25)'); txt(String(n), cx, cy, 'bold ' + s + 'px ' + FONT, '#C55A11'); ctx.restore();
+  } else if (game.t - VS.openAt < 1.1) {
+    const s = Math.round(clamp(H * 0.16, 40, 90));
+    ctx.save(); ctx.globalAlpha = clamp(1.1 - (game.t - VS.openAt), 0, 1); txt('開門！', cx + 3, cy + 3, 'bold ' + s + 'px ' + FONT, 'rgba(0,0,0,.25)'); txt('開門！', cx, cy, 'bold ' + s + 'px ' + FONT, '#217346'); ctx.restore();
+  }
+}
+// 完賽：今日加班排行（別人還在跑會即時更新）
+function vsDrawResult() {
+  const r = game.result, ps = VS.players, me = VS.uid;
+  vsNoteResults();
+  const all = Object.keys(VS.names).map(u => {
+    const p = ps[u], res = VS.res[u];
+    if (res) return { u, k: 0, v: res.t, t: fmt(res.t), f: res.f };
+    if (p && p.r === VS.raceId && p.st === 'run') return { u, k: 1, v: -(p.x || 0), t: '—', note: p.a ? '掛機中 💤' : '還在 ' + Math.max(0, Math.round(p.x || 0)) + ' m' };
+    return { u, k: 2, v: 0, t: '—', note: p ? '中途離開' : '離線' };
+  }).sort((a, b) => a.k - b.k || a.v - b.v);
+  const done = all.filter(a => a.k === 0), allIn = all.every(a => a.k !== 1);
+  if (done.length && all.length > 1) done[0].note = '最早下班';
+  if (allIn && done.length > 1) done[done.length - 1].note = '最後一個走，記得關燈';
+  let fx1 = ROW_W + 8, fx2 = W - 8;
+  if (IS_TOUCH && !document.body.classList.contains('padoff')) { const cr = cv.getBoundingClientRect(); document.querySelectorAll('[data-touch]').forEach(b => { const q = b.getBoundingClientRect(); if (!q.width || q.top < cr.top + 60 || q.top > cr.bottom - 4) return; const l = (q.left - cr.left) / uiK, rr = (q.right - cr.left) / uiK; if (l + rr < W) fx1 = Math.max(fx1, rr + 6); else fx2 = Math.min(fx2, l - 6); }); }
+  const availW = fx2 - fx1, bw = Math.min(440, availW), rf = bw < 320 ? 12 : 13, f = rf + 'px ' + FONT, fb = 'bold ' + rf + 'px ' + FONT, fs = (rf - 1) + 'px ' + FONT, lh = rf + 5, rh = rf + 9, hh = rf + 12;
+  const nm = a => VS.names[a.u] + (a.u === me ? '（你）' : '');
+  // 欄寬照內容量：放得下就一行一筆（名次｜暱稱｜時間｜備註），放不下備註就換到暱稱下面，暱稱太長折行（不截成「…」）
+  ctx.font = fb; const nameW = Math.max(...all.map(a => ctx.measureText(nm(a)).width)), timeW = ctx.measureText('00:00.0').width;
+  ctx.font = f; const noteW = Math.max(0, ...all.map(a => a.note ? ctx.measureText(a.note).width : 0));
+  const c1 = bx0 => bx0 + 10, c2 = bx0 => bx0 + 40, one = 40 + nameW + 14 + timeW + 14 + noteW + 10 <= bw;
+  const nameMax = one ? nameW + 2 : bw - 40 - timeW - 22;
+  const items = all.map(a => { const nl = wrapText(nm(a), nameMax, a.u === me ? fb : f); const h = Math.max(rh, nl.length * lh + 6) + (!one && a.note ? lh : 0); return { a, nl, h }; });
+  const mine = '你：' + fmt(r.t) + (r.bonus ? '（獎金 −' + r.bonus + ' 秒）' : '') + '・績效 ' + (r.grade || '—') + ' 等';
+  const ml = wrapText(mine, bw - 20, f), room = H - HEAD_H - 70 - hh - rh - ml.length * rh;
+  let used = 0, n = 0; for (const it of items) { if (used + it.h > room && n >= 3) break; used += it.h; n++; }
+  const rows = items.slice(0, n), more = all.length - n, bh = hh + rh + used + (more ? rh : 0) + ml.length * rh + 10;
+  const bx = fx1 + (availW - bw) / 2, by = HEAD_H + 8 + clamp((H - HEAD_H - 58 - bh) / 3, 0, 80);
+  game.resultRect = { x: bx, y: by, w: bw, h: bh };
+  placeCopyBtn();
+  ctx.fillStyle = '#fff'; ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = C.green; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
+  ctx.fillStyle = C.green; ctx.fillRect(bx, by, bw, hh); txt('今日加班排行', bx + 10, by + hh / 2, 'bold ' + (rf + 1) + 'px ' + FONT, '#fff', 'left');
+  const tX = one ? bx + 40 + nameW + 14 + timeW : bx + bw - 10, nX = tX + 14;
+  let y = by + hh; ctx.fillStyle = '#F2F2F2'; ctx.fillRect(bx + 1, y, bw - 2, rh);
+  txt('名次', c1(bx), y + rh / 2, fs, '#666', 'left'); txt('暱稱', c2(bx), y + rh / 2, fs, '#666', 'left'); txt('時間', tX, y + rh / 2, fs, '#666', 'right'); if (one && noteW) txt('備註', nX, y + rh / 2, fs, '#666', 'left'); y += rh;
+  let rank = 0;
+  rows.forEach(({ a, nl, h }) => {
+    const isMe = a.u === me, top = y + 3 + lh / 2;
+    if (isMe) { ctx.fillStyle = '#E2EFDA'; ctx.fillRect(bx + 1, y, bw - 2, h); }
+    txt(a.k === 0 ? String(++rank) : '—', c1(bx) + 8, top, fb, '#666');
+    nl.forEach((l, j) => txt(l, c2(bx), top + j * lh, isMe ? fb : f, isMe ? C.green : vsColor(a.u), 'left'));
+    txt(a.t, tX, top, f, '#222', 'right');
+    const nc = a.note === '最早下班' ? '#C55A11' : '#595959';
+    if (a.note) { if (one) txt(a.note, nX, top, f, nc, 'left'); else txt(a.note, c2(bx), top + nl.length * lh, fs, nc, 'left'); }
+    y += h; ctx.strokeStyle = '#E6E6E6'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx, y + 0.5); ctx.lineTo(bx + bw, y + 0.5); ctx.stroke();
+  });
+  if (more) { txt('還有 ' + more + ' 人', c2(bx), y + rh / 2, f, '#888', 'left'); y += rh; }
+  y += 5; ml.forEach(l => { txt(l, bx + 10, y + rh / 2, f, '#222', 'left'); y += rh; });
+}
+window.__game = { VS, vsFrame,  uiK: () => uiK, finish, nextReward, renderLog, renderSkins, renderAchievements, selectSkin, checkRHold, pressKey, releaseKey, setSkin: id => { skin = id; }, setHeadVis: v => { HEAD_VIS = v; }, render: () => render(), occ: () => ({ topOcc, mustOcc, tutKeyOcc }), w2s: (x, y) => [sx(x), sy(y), ppm], game, keys, contacts, loadMode, spawn, spawnAt, TUNE, sim, LEVEL, stats, achieved, award, die, copyResult, draw: () => { updateCamera(1); render(); updateHud(); } };
 })();
 
 </script>
