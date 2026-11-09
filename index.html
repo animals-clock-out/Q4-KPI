@@ -516,18 +516,18 @@ const ACH = [
   { id: 'first_finish', name: '新人報到', desc: '第一次完賽', skin: 'badge' },
   { id: 'no_fall', name: '完美報表', desc: '零摔倒、零陣亡完賽', skin: 'tie' },
   { id: 'fast', name: '光速下班', desc: '50 秒內完賽', skin: 'crown' }, // v8.2：原本跟打卡成就同名
-  { id: 'pit10', name: 'N/A 常客', desc: '累計掉進深淵 10 次', skin: 'hardhat' },
-  { id: 'boss3', name: '上班偷玩慣犯', desc: '被老闆抓到 3 次', skin: 'shades' },
-  { id: 'actor5', name: '影帝', desc: '在老闆面前成功裝沒事 5 次', skin: 'suit' },
-  { id: 'ko3', name: '頭鐵', desc: '頭部 KO 3 次', skin: 'bandage' },
+  { id: 'pit10', name: 'N/A 常客', desc: '累計掉進深淵 10 次', skin: 'hardhat', need: 10, stat: ['pit'] },
+  { id: 'boss3', name: '上班偷玩慣犯', desc: '被老闆抓到 3 次', skin: 'shades', need: 3, stat: ['boss'] },
+  { id: 'actor5', name: '影帝', desc: '在老闆面前成功裝沒事 5 次', skin: 'suit', need: 5, stat: ['actor'] },
+  { id: 'ko3', name: '頭鐵', desc: '頭部 KO 3 次', skin: 'bandage', need: 3, stat: ['ko'] },
   { id: 'art9', name: '行為藝術家', desc: '摔出一次超誇張的慘劇', skin: 'mask' },
-  { id: 'pie', name: '市占率受害者', desc: '被圓餅圖輾過', skin: 'zoomfit' },
-  { id: 'ref', name: '忘記存檔', desc: '掉進沒存檔的格子', skin: 'excel' },
-  { id: 'chase', name: '被選取框吞掉', desc: '被自動填滿追上', skin: 'coffee' },
-  { id: 'stock', name: '當沖失敗', desc: '在股市崩盤區摔倒', skin: 'zebra' },
+  { id: 'pie', name: '市占率受害者', desc: '累計被圓餅圖輾過 3 次', skin: 'zoomfit', need: 3, stat: ['pie', 'chair'] },
+  { id: 'ref', name: '忘記存檔', desc: '累計掉進沒存檔的格子 3 次', skin: 'excel', need: 3, stat: ['ref'] },
+  { id: 'chase', name: '被選取框吞掉', desc: '累計被自動填滿追上 3 次', skin: 'coffee', need: 3, stat: ['chase'] },
+  { id: 'stock', name: '當沖失敗', desc: '累計在股市崩盤區摔倒 3 次', skin: 'zebra', need: 3, stat: ['stock'] },
   { id: 'tarzan', name: '人猿泰山', desc: '咬著樹枝盪過深淵', skin: 'wifi' },
   { id: 'ledge', name: '極限救援', desc: '掉進深淵時咬住崖邊，盪上來', skin: 'scarf' },
-  { id: 'punch', name: '準時下班', desc: '拿自己的卡打下班卡', skin: 'sticky' },
+  { id: 'punch', name: '準時下班', desc: '累計打卡下班 5 次', skin: 'sticky', need: 5, stat: ['finishes'] }, // v8.7：原本第一次完賽一定同時拿到（跟「新人報到」重複）
   { id: 'proxy', name: '代打卡', desc: '拿別人的卡去打卡', skin: 'box' },
   { id: 'ride', name: '辦公室椅子', desc: '踩著辦公室椅子滑過未存檔區', skin: 'racer' },
   { id: 'overArch', name: '越級報告', desc: '用彈簧格從合併儲存格上方飛過', skin: 'phones' },
@@ -1301,7 +1301,7 @@ function rules() {
     game.punchT = 1; game.punchAt = game.t;
     {
       const c = g.bitCard;
-      if (c && c.mine) { award('punch'); setBite(false); finish(); } // v7：刷卡成功自動鬆口
+      if (c && c.mine) { setBite(false); finish(); } // v7：刷卡成功自動鬆口
       else if (c) {
         award('proxy'); say('proxy', 3, 2); toast('打錯卡了', '這是 ' + c.code + '，你是 ' + game.cardCode + '。卡片已退回卡片架', '#C00000');
         c.body.getFixtureList().setFilterData({ groupIndex: 0, categoryBits: 0x0001, maskBits: 0x0001 });
@@ -1475,7 +1475,7 @@ function judgesFor(s) {
 }
 function scoreEvent(kind) {
   const s = artScore(kind), j = judgesFor(s);
-  if (s >= 9) award('art9');
+  if (s >= 12) award('art9'); // v8.7：9 → 12（原本 10 場模擬有 3 場拿到）
   if (!game.best || s > game.best.score) game.hlPending = { score: s, judges: j, kind, label: KIND_LABEL[kind], at: game.t + (kind === 'fall' || kind === 'stock' ? 0.9 : 0.6) };
   return { s, j };
 }
@@ -1505,7 +1505,7 @@ function fallDown() {
   const inStock = x > LEVEL.stock.x1 && x < LEVEL.stock.x2;
   game.falls++;
   game.state = 'down'; game.upTimer = 0; game.downTime = 0; game.downHinted = false;
-  if (inStock) { statInc('stock'); award('stock'); }
+  if (inStock) { statInc('stock'); if (stats.stock >= 3) award('stock'); }
   const tip = game.t - (game.g.tipAt ?? -9) < 3; // 重心失衡倒下
   eventTalk(inStock ? 'stockFall' : tip ? 'tipFall' : 'fall', 1, inStock ? 'stock' : 'fall');
 }
@@ -1522,9 +1522,10 @@ function die(kind) {
   if (kind === 'pit' && stats.pit >= 10) award('pit10');
   if (kind === 'boss' && stats.boss >= 3) award('boss3');
   if (kind === 'ko' && stats.ko >= 3) award('ko3');
-  if (kind === 'pie' || kind === 'chair') award('pie');
-  if (kind === 'ref') award('ref');
-  if (kind === 'chase') award('chase');
+  // v8.7（使用者：一場完賽同時解 5 個造型，降低重玩的動力；目標大約每 2 場解 1 個）：死一次就給的改成累計 3 次
+  if ((kind === 'pie' || kind === 'chair') && (stats.pie || 0) + (stats.chair || 0) >= 3) award('pie');
+  if (kind === 'ref' && stats.ref >= 3) award('ref');
+  if (kind === 'chase' && stats.chase >= 3) award('chase');
   eventTalk(kind === 'chair' ? 'chairHit' : kind, 2, kind);
   if (kind === 'ko') g.head.applyAngularImpulse(0.4, true);
   if (kind === 'boss') { game.boss.phase = 'caught'; game.boss.t = 0; game.boss.line = pick(game.boss.mode === 'seat' ? SUP_CAUGHT : BOSS_CAUGHT); }
@@ -1563,7 +1564,7 @@ function finish() {
   commitHighlight();
   game.result = { t, raw, bonus, bonusText: bonusText(), falls: game.falls, deaths: game.deaths, isBest, prev, best: game.best };
   game.result.grade = gradeOf(t); game.result.gradeLine = pick(GRADE_LINES[game.result.grade]);
-  statInc('finishes');
+  statInc('finishes'); if (stats.finishes >= 5) award('punch');
   award('first_finish');
   if (game.falls + game.deaths === 0) award('no_fall');
   if (t < 50) award('fast');
@@ -2143,6 +2144,9 @@ function drawOffice() {
       occTop = hintY - hf;
     }
     levelOcc.push({ x: bx - Math.max(w, 300) / 2 - 4, y: occTop, w: Math.max(w, 300) + 8, h: rackTopPx - occTop }); // 主播註解別蓋住這一整組
+    // v8.6（使用者：手機直式主播註解剛好蓋住卡片編號）：卡片那一排也絕對不能蓋（找不到位置時主播註解寧可先不顯示）
+    const cr = { x: sx(cd.x - cd.gap - 0.6), y: sy(cd.y + cd.hh + 0.15), w: (cd.gap * 2 + 1.2) * ppm, h: (cd.hh * 2 + 0.3) * ppm };
+    levelOcc.push(cr); mustOcc.push(cr);
   }
   // 打卡機 + 打卡區 + 公司大門
   const pz = LEVEL.punch, px = sx(pz.x2 + 0.35);
@@ -3118,6 +3122,8 @@ function renderGiraffePreview(id, w, h) {
 // 文字太長就截斷加「…」
 function fitText(t, maxW, font) { ctx.font = font; if (ctx.measureText(t).width <= maxW) return t; while (t.length > 1 && ctx.measureText(t + '…').width > maxW) t = t.slice(0, -1); return t + '…'; }
 const skinAch = id => ACH.find(a => a.skin === id);
+// v8.7：累計型成就還沒解鎖時，條件後面顯示進度（例如「（1/3）」），讓人知道再玩幾場就到
+const achDesc = a => a.need && !achieved[a.id] ? a.desc + '（' + Math.min(a.need, a.stat.reduce((t, k) => t + (stats[k] || 0), 0)) + '/' + a.need + '）' : a.desc;
 function selectSkin(i) {
   game.skinSel = clamp(i, 0, SKINS.length - 1);
   const s = SKINS[game.skinSel];
@@ -3136,6 +3142,7 @@ function renderSkins() {
   let px, py, pw, ph, tx, ty, tw;
   if (!portrait) { const total = Math.min(W - ROW_W - 2 * pad, 1150 * k), x0 = ROW_W + (W - ROW_W - total) / 2; pw = Math.min(400 * k, total * 0.38); ph = Math.min(H - 2 * pad, pw * 1.3); px = x0; py = pad; tx = x0 + pw + 22 * k; tw = total - pw - 22 * k; ty = pad; }
   else { pw = W - ROW_W - 2 * pad; ph = Math.min(230, H * 0.3); px = ROW_W + pad; py = pad; tx = px; tw = pw; ty = py + ph + 10; }
+  game.skinPreview = { x: px, y: py, w: pw, h: ph, tableTop: portrait ? ty : 0 }; // v8.6：點預覽框不會點到被它蓋住的造型
   // 預覽框（像 Excel 的圖表物件）
   ctx.save(); ctx.shadowColor = 'rgba(0,0,0,.15)'; ctx.shadowBlur = 8; ctx.fillStyle = '#fff'; ctx.fillRect(px, py, pw, ph); ctx.restore();
   ctx.strokeStyle = '#BFBFBF'; ctx.lineWidth = 1; ctx.strokeRect(px + 0.5, py + 0.5, pw - 1, ph - 1);
@@ -3144,13 +3151,14 @@ function renderSkins() {
   ctx.fillStyle = '#E2EFDA'; ctx.fillRect(px + 1, py + ph - 26 * k, pw - 2, 25 * k); // 地面
   const img = renderGiraffePreview(viewId, pw - 20, ph - 40 * k);
   if (img) ctx.drawImage(img, px + 10, py + 32 * k, pw - 20, ph - 40 * k);
+  if (game.tryOn) { const hf = 'bold ' + Math.round(12 * k) + 'px ' + FONT; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.font = hf; const tw2 = ctx.measureText(touchText(IS_TOUCH ? '點這裡取消試穿' : '點這裡取消試穿')).width + 16; roundRect(px + pw / 2 - tw2 / 2, py + ph - 24 * k, tw2, 20 * k, 6); ctx.fill(); txt('點這裡取消試穿', px + pw / 2, py + ph - 14 * k, hf, '#9C5700'); } // v8.6
   // v8：造型表太長可以上下捲；預覽框固定不動（點了造型才看得到穿上的樣子）
   const scr = pageScroll('skin'); ctx.save(); ctx.beginPath(); ctx.rect(portrait ? 0 : tx - 2, portrait ? ty - 1 : 0, portrait ? W : tw + 4, H); ctx.clip(); ctx.translate(0, -scr);
   // 造型表
   const fh = Math.round(26 * k), footH = Math.round(24 * k), rowH = clamp((H - ty - pad - fh - footH) / SKINS.length, IS_TOUCH ? 30 : 17, 30 * k), ff = Math.round(clamp(rowH * 0.56, 11, 16 * k));
   // v8.1（使用者：手機上字被切掉）：先量三欄需要多寬；放得下就一行一個造型（欄寬照內容分配），
   //   放不下就改成兩行：上「造型名稱 ＋ 狀態」、下「解鎖條件」（太長就折行），不截斷任何字
-  const condOf = s => s.id === 'none' ? '—' : (a => a ? a.name + '：' + a.desc : '—')(skinAch(s.id));
+  const condOf = s => s.id === 'none' ? '—' : (a => a ? a.name + '：' + achDesc(a) : '—')(skinAch(s.id));
   const fB = 'bold ' + ff + 'px ' + FONT, fN = ff + 'px ' + FONT, mw = (t, f) => { ctx.font = f; return ctx.measureText(t).width; };
   const needN = Math.max(mw('造型', fB), ...SKINS.map(s => mw(s.name, fB))) + 16, needC = Math.max(mw('解鎖條件', fB), ...SKINS.map(s => mw(condOf(s), fN))) + 16, needS = Math.max(mw('狀態', fB), mw('使用中', fB)) + 16;
   const twoLine = needN + needC + needS > tw;
@@ -3240,7 +3248,7 @@ function renderAchievements() {
   // v8.1：欄寬照內容分配；三欄放不下（會被截成「…」）就改成上下兩行（narrow）
   const skName = a => a.skin ? SKINS.find(s => s.id === a.skin).name : '—', mw = (t, f) => { ctx.font = f; return ctx.measureText(t).width; };
   const fB = 'bold ' + ff + 'px ' + FONT, fN = ff + 'px ' + FONT, c0 = ROW_W + rowH * 1.4;
-  const need = [Math.max(mw('成就', fB), ...ACH.map(a => mw(a.name, fB))), Math.max(mw('條件', fB), ...ACH.map(a => mw(a.desc, fN))), Math.max(mw('獎勵（造型）', fB), ...ACH.map(a => mw(skName(a), fN)))].map(w => w + 18);
+  const need = [Math.max(mw('成就', fB), ...ACH.map(a => mw(a.name, fB))), Math.max(mw('條件', fB), ...ACH.map(a => mw(achDesc(a), fN))), Math.max(mw('獎勵（造型）', fB), ...ACH.map(a => mw(skName(a), fN)))].map(w => w + 18);
   const ex = (ROW_W + tw - c0 - need[0] - need[1] - need[2]) / 3;
   const cols = [ROW_W, c0, c0 + need[0] + ex, c0 + need[0] + need[1] + ex * 2, ROW_W + tw];
   ctx.strokeStyle = '#EDEDED'; ctx.lineWidth = 1; ctx.beginPath(); for (let x = ROW_W + tw; x < W; x += CELL_W) { ctx.moveTo(x + 0.5, 0); ctx.lineTo(x + 0.5, H); } for (let y = 0; y < H; y += rowH) { ctx.moveTo(ROW_W, y + 0.5); ctx.lineTo(W, y + 0.5); } ctx.stroke();
@@ -3254,7 +3262,7 @@ function renderAchievements() {
   ACH.forEach(a => {
     let h = rowH, desc = null, skLine = false;
     if (narrow) {
-      desc = wrapText(a.desc, right - x1, f2);
+      desc = wrapText(achDesc(a), right - x1, f2);
       // 獎勵放名稱右邊；名稱 ＋ 獎勵放不下（造型名稱長）就自己一行放最下面，不截斷
       if (a.skin) { ctx.font = 'bold ' + ff + 'px ' + FONT; const nw = ctx.measureText(achieved[a.id] ? a.name : '？？？').width; ctx.font = f2; skLine = nw + ctx.measureText('🎁 ' + SKINS.find(s => s.id === a.skin).name).width + 14 > right - x1; }
       h = Math.round(rowH * 0.5 + ff * 1.25 + (desc.length + (skLine ? 1 : 0)) * (ff + 4) + 6);
@@ -3282,7 +3290,7 @@ function renderAchievements() {
     txt(String(i + 2), ROW_W / 2, y + rowH / 2, Math.round(ff * 0.85) + 'px Arial, sans-serif', '#666');
     txt(ok ? '✔' : '🔒', (cols[0] + cols[1]) / 2, y + rowH / 2, ff + 'px ' + FONT, ok ? C.green : '#999');
     txt(ok ? a.name : '？？？', cols[1] + 8, y + rowH / 2, (ok ? 'bold ' : '') + ff + 'px ' + FONT, ok ? '#222' : '#999', 'left');
-    txt(a.desc, cols[2] + 8, y + rowH / 2, ff + 'px ' + FONT, ok ? '#404040' : '#999', 'left');
+    txt(achDesc(a), cols[2] + 8, y + rowH / 2, ff + 'px ' + FONT, ok ? '#404040' : '#999', 'left');
     txt(sk, cols[3] + 8, y + rowH / 2, ff + 'px ' + FONT, ok ? '#C55A11' : '#999', 'left');
   });
   const vcols = narrow ? [cols[0], cols[1], ROW_W + tw] : cols; // 窄畫面只有圖示 / 內容兩欄
@@ -3309,6 +3317,12 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.09 - v2', items: [
+    '成就改成要多玩幾場才拿得到（例如被圓餅圖輾過、掉進未存檔格子要累計 3 次），成就頁會顯示目前進度',
+    '「準時下班」改成累計打卡下班 5 次',
+    '打卡區的主播註解不會再擋住卡片編號',
+    '造型頁：點預覽框不會選到後面看不到的造型；試穿中點預覽框可以取消試穿',
+  ] },
   { v: '2026.11.09 - v1', items: [
     '完賽後多了「再加一次班」按鈕，點一下就重新開始（手機版不用再重新整理）',
     '平地走路按「跳」不會再莫名後空翻',
@@ -3646,7 +3660,13 @@ cv.addEventListener('pointerup', e => {
   if (!pageDrag || e.pointerId !== pageDrag.id) return;
   const d = pageDrag; pageDrag = null;
   if (d.moved || game.view !== 'skin') return;
-  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top + (game.pageScroll.skin || 0);
+  const r = cv.getBoundingClientRect(), x = e.clientX - r.left, sy0 = e.clientY - r.top, y = sy0 + (game.pageScroll.skin || 0);
+  // v8.6（使用者：手機直式往下捲後點預覽框，會點到框後面看不到的造型）：預覽框（和它上面被蓋住的表格）點不到後面；試穿中點預覽框 = 取消試穿、換回身上的
+  const pv = game.skinPreview;
+  if (pv && ((x >= pv.x && x <= pv.x + pv.w && sy0 >= pv.y && sy0 <= pv.y + pv.h) || sy0 < pv.tableTop)) {
+    if (game.tryOn) { game.tryOn = null; game.skinSel = Math.max(0, SKINS.findIndex(s => s.id === skin)); }
+    return;
+  }
   const row = (game.skinRows || []).find(q => x >= q.x && x <= q.x + q.w && y >= q.y && y <= q.y + q.h);
   if (row) selectSkin(row.i);
 });
