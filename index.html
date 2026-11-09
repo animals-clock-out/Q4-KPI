@@ -71,6 +71,12 @@
   .againbtn { position: absolute; display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 14px; border: 1px solid var(--green); border-radius: 4px; background: var(--green); color: #fff; font: bold 13px "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif; cursor: pointer; z-index: 5; box-shadow: 0 1px 3px rgba(0,0,0,.2); }
   .againbtn:hover { filter: brightness(1.08); }
   .againbtn[hidden] { display: none; }
+  /* v8.9 新人訓練：跳過按鈕、現在要按的鍵閃黃框 */
+  .skipbtn { position: absolute; left: 46px; top: 28px; height: 28px; padding: 0 12px; border: 1px solid #A6A6A6; border-radius: 4px; background: rgba(255,255,255,.92); color: #404040; font: 13px "Segoe UI", "PingFang TC", "Microsoft JhengHei", sans-serif; cursor: pointer; z-index: 5; }
+  .skipbtn:hover { background: #F2F2F2; }
+  .skipbtn[hidden] { display: none; }
+  @keyframes keyhint { 0%, 100% { box-shadow: 0 0 0 0 rgba(242,181,58,0); } 50% { box-shadow: 0 0 0 5px rgba(242,181,58,.85); } }
+  .key.hint, .tbtn.hint { border-color: #E2A02E; animation: keyhint 1s ease-in-out infinite; }
   .againbtn .k { font: 10px Consolas, monospace; border: 1px solid rgba(255,255,255,.6); border-radius: 3px; padding: 0 3px; }
   body.touch .againbtn .k { display: none; }
   /* v7 手機版：螢幕按鍵（電腦版不顯示） */
@@ -195,7 +201,7 @@
     <div class="fx">fx</div>
     <div id="formula"></div>
   </div>
-  <div class="sheet" id="sheet"><canvas id="cv"></canvas><button id="againBtn" class="againbtn" hidden title="重新開始，再跑一次">再加一次班 <span class="k">R</span></button><button id="copyBtn" class="copybtn" hidden title="複製成績表格（圖片）"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M11 3.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>複製成績</button>
+  <div class="sheet" id="sheet"><canvas id="cv"></canvas><button id="skipBtn" class="skipbtn" hidden title="跳過新人訓練，直接玩第 1 關">跳過訓練 ▸</button><button id="againBtn" class="againbtn" hidden title="重新開始，再跑一次">再加一次班 <span class="k">R</span></button><button id="copyBtn" class="copybtn" hidden title="複製成績表格（圖片）"><svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><rect x="5" y="5" width="9" height="9" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M11 3.5V3a1 1 0 0 0-1-1H3a1 1 0 0 0-1 1v7a1 1 0 0 0 1 1h.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>複製成績</button>
     <!-- v7 手機版：螢幕按鍵（左手 ← → 跳；右手 低頭最大顆在右下、咬疊在上面、抬頭在左邊） -->
     <div id="pad">
       <div class="tbtn tb-left" data-touch="KeyA"><b>←</b><small>退</small></div>
@@ -207,6 +213,7 @@
     </div>
     <div class="tbtn tb-reset" id="tReset" data-touch="KeyR">↺ 回存檔點<small>按住</small></div></div>
   <div class="tabs" id="tabs">
+    <div class="tab" data-mode="tutorial" title="新人訓練：學會基本操作（不計時）">新人訓練 <span class="k">0</span></div>
     <div class="tab on" data-mode="normal">第 1 關 <span class="k">1</span></div>
     <div class="tab soon" id="lv2Tab" title="第 2 關製作中：新同事報到中，敬請期待">第 2 關 <span class="soonTag">製作中</span> <span class="k">2</span></div>
     <div class="tab" data-view="ach" id="achTab">成就 <span class="k">3</span></div>
@@ -382,7 +389,7 @@ const DUO = {
   seatPass: [['主管點點頭走了', '他在平板上幫你打了個勾'], ['主管：「很好，繼續保持」', '保持什麼？保持長頸鹿嗎？'], ['主管滿意地離開', '他要去跟老闆邀功了']],
   seatFail: [['被主管抓到沒在看螢幕', '你的螢幕是裝飾用的嗎？'], ['主管：「你剛剛在看哪？」', '在看長頸鹿跨欄'], ['主管默默在平板上記了一筆', '這筆會出現在年終考核']],
   chairFling: [['椅子卡進洞裡了！選手被甩出去！', '這就是沒繫安全帶的下場'], ['輪子卡住，選手起飛！', '總務：那張椅子要報廢了']],
-  ride: [['選手踩上辦公室椅子！', '這是公司財產，請愛惜使用'], ['踩著辦公室椅子滑出去了！', '總務看到會哭']],
+  ride: [['選手踩上董事長座椅！', '董事長本人都沒這樣坐過'], ['踩著董事長座椅滑出去了！', '總務看到會哭']], // v8.9：辦公室椅子 → 董事長座椅
   chairHit: [['被辦公椅撞飛！', '那是誰的椅子？'], ['空椅子衝下來了', '它的主人今天請假']],
   chairWarn: [['坡上好像有東西滑下來', '是…一張空的辦公椅？'], ['辦公椅失控了！', '快跳！它有輪子！']],
   cardHint: [['下班前記得打卡！', '牆上有你的員工編號'], ['先拿自己的卡', `按${K.bite}叼起來，再跳起來刷打卡機`]],
@@ -474,7 +481,8 @@ const statInc = (k, n = 1) => { stats[k] = (stats[k] || 0) + n; store.setJson('g
 // ---------- 關卡 ----------
 const LEVEL = {
   chains: [
-    [[-14, 14], [-14, 0], [32, 0], [33, 0.04], [34, 0.16], [35, 0.4], [36, 0.75], [37, 1.1], [38, 1.34], [39, 1.46], [40, 1.5], [42, 1.5], [42, -14]],
+    [[-36, 14], [-36, 0], [32, 0], // v8.9：起跑線左邊多一段給「新人訓練」（-36～-3，公司入口門禁在 -3）
+      [33, 0.04], [34, 0.16], [35, 0.4], [36, 0.75], [37, 1.1], [38, 1.34], [39, 1.46], [40, 1.5], [42, 1.5], [42, -14]],
     [[46, -14], [46, 0.8], [51, 0.8], [52, 0.78], [53, 0.7], [54, 0.56], [55, 0.38], [56, 0.21], [57, 0.08], [58, 0.02], [59, 0], [60, 0], [60, -14]],
     [[72, -14], [72, 0], [76, 0], [76, -14]],
     [[92, -14], [92, 0], [141.3, 0], [141.3, 14]], // 141.3 是公司大門（v8：未存檔區拉長 4 m，後面全部往後挪 4 m）
@@ -507,6 +515,9 @@ const LEVEL = {
   punch: { x1: 133.1, x2: 134.7, slotX: 138.0, slotY: 5.8 }, // v7：卡片間距 1.15 → 1.8，打卡機、大門往後挪 0.8 m // 打卡機：v6 打卡口抬高，咬著卡跳起來、卡片碰到打卡口就打卡
   bossOk: [[3, 8.5], [11.5, 15], [28, 29.6], [46.5, 50.5]], // v8.3：拱門後那段縮到 29.6（再後面就是圓餅圖坡道，老闆腳步聲 2.6 秒內玩家會走進坡道太深）。 // v8.2：拿掉 120.5–124（保底巡視會拖到打卡區，彈窗疊成一堆；使用者選：老闆不在打卡區出現）。28–31 保留（拿掉的話老闆一場只剩 1 次），圓餅圖改成老闆走後 1 秒、玩家還在 36 m 前才滾
   // 只在平穩的平地出現（不在欄杆、長條圖、拱門、彈簧格旁邊）；座位區（92–100）前後 15 m 內不出現
+  // v8.9 新人訓練（使用者：不常玩遊戲的同事一開始不知道在幹嘛）：起跑線左邊一段平地，三小段、每段教兩個動作，約 30 秒
+  //   ① 報到：走 + 跳（紙箱）② 歡迎看板：低頭鑽過 + 抬頭 ③ 門禁：叼識別證 + 跳起來刷卡 → 門開了走進第 1 關（過 0 m 才開始計時）
+  tut: { wall: -36, spawn: -30.5, box: { x: -25, hw: 0.35, h: 0.7 }, sign: { x1: -19.5, x2: -16.5, y: 3.1, top: 6.4 }, badge: { x: -10, y: 4.2, hw: 0.3, hh: 0.4 }, reader: { x: -3.5, y: 5.8 }, gate: -3 }, // 讀卡機緊貼門：頂著門跳也刷得到
   zones: [[-99, '起跑線'], [7, '第一根欄杆'], [14, '即時長條圖'], [22, '合併儲存格'], [30, '圓餅圖坡道'], [41, 'N/A 深淵'], [47, '下坡'], [59, '股市崩盤區'], [74, '未存檔區'], [93, '座位區'], [105, '紙箱牆'], [120, '打卡區']],
 };
 const zoneAt = x => { let z = LEVEL.zones[0][1]; for (const [zx, n] of LEVEL.zones) if (x >= zx) z = n; return z; };
@@ -529,7 +540,7 @@ const ACH = [
   { id: 'ledge', name: '極限救援', desc: '掉進深淵時咬住崖邊，盪上來', skin: 'scarf' },
   { id: 'punch', name: '準時下班', desc: '累計打卡下班 5 次', skin: 'sticky', need: 5, stat: ['finishes'] }, // v8.7：原本第一次完賽一定同時拿到（跟「新人報到」重複）
   { id: 'proxy', name: '代打卡', desc: '拿別人的卡去打卡', skin: 'box' },
-  { id: 'ride', name: '辦公室椅子', desc: '踩著辦公室椅子滑過未存檔區', skin: 'racer' },
+  { id: 'ride', name: '董事長座椅', desc: '踩著董事長座椅滑過未存檔區', skin: 'racer' }, // v8.9：原「辦公室椅子」
   { id: 'overArch', name: '越級報告', desc: '用彈簧格從合併儲存格上方飛過', skin: 'phones' },
   { id: 'launch', name: '漲停板', desc: '股市反彈時起飛，平安落地', skin: 'party' },
   { id: 'sanjie', name: '三節獎金全拿', desc: '一場拿到春節、端午、中秋三包獎金', skin: 'jiejie' },
@@ -565,12 +576,15 @@ const pendingEvents = [];
 // ---------- 對話框 ----------
 // prio：0 一般、1 重要（障礙提示）、2 死亡 / 老闆
 function talk(lines, dur = 3.2, prio = 0) {
+  if (game.tut && prio < 3) return; // v8.9 新人訓練：只留教學用台詞（prio 3），畫面乾淨、只看操作說明
   if (game.note && game.t < game.note.until && game.note.prio > prio) return;
   let at = game.t;
   const prev = game.note && game.t < game.note.until ? game.note.cur : null; // 換台詞時框從原位置滑過去
   game.note = { lines: lines.map((l, i) => { const o = { who: l[0], text: l[1], at }; at += i === 0 ? 1.0 : 0.8; return o; }), until: at + dur - 0.8, born: game.t, prio, cur: prev && { ...prev } };
 }
+const TUT_SAY = new Set(['down', 'up', 'save', 'tipFall']); // 新人訓練中照樣要出現的台詞（倒地了要教怎麼起來）
 function say(kind, dur, prio = 0, override) {
+  if (game.tut && TUT_SAY.has(kind)) prio = 3;
   const [a, b] = pick(DUO[kind]);
   const lines = [['主播', override && override[0] || a], ['賽評', override && override[1] || b]];
   talk(lines, dur, prio);
@@ -592,6 +606,11 @@ function buildWorld() {
   for (const b of LEVEL.branches) {
     ground.createFixture(pl.Box(b.w / 2, 0.12, V(b.x, b.y), 0), { isSensor: true, userData: { kind: 'branch', biteable: true } }); // 只有嘴巴咬得到
   }
+  // v8.9 新人訓練：紙箱（要跳，不算地面：避震彈簧不會自動爬上去）、歡迎看板（跟拱門一樣要低頭）、公司入口門禁（刷卡才開）
+  const tu = LEVEL.tut;
+  ground.createFixture(pl.Box(tu.box.hw, tu.box.h / 2, V(tu.box.x, tu.box.h / 2), 0), { friction: 0.6, userData: { kind: 'tutBox', biteable: true } });
+  // 歡迎看板不做成實心（實測：沒低頭頂到看板時身體會往後仰、頭反而被推高，卡在那裡好幾秒）→ 沒低頭碰到就「叩！」被彈回去（tutTick）
+  game.tutGate = null; game.gateOpenAt = -99; // 公司入口：第 1 關一直開著（長頸鹿剛從這裡走進來）；新人訓練時 loadMode 再把門關上
   game.hurdles = LEVEL.hurdles.map(h => {
     const body = world.createBody({ type: 'dynamic', position: V(h.x, h.h / 2) });
     body.createFixture(pl.Box(0.11, h.h / 2), { density: 2, friction: 0.6, userData: { kind: 'hurdle', biteable: true } });
@@ -661,6 +680,14 @@ function buildProps() {
     const peg = W2.createJoint(pl.RevoluteJoint({}, game.ground, b, V(x, cd.y + cd.hh)));
     game.props.push({ type: 'card', body: b, code: c.code, mine: c.mine, peg, home: x });
   });
+  // v8.9 新人訓練：掛在鉤子上的識別證（用卡片的咬法：嘴巴靠近按咬就叼起來）
+  if (game.tut && !game.gateOpenAt) {
+    const bd = LEVEL.tut.badge;
+    const b = W2.createBody({ type: 'dynamic', position: V(bd.x, bd.y), angularDamping: 2 });
+    b.createFixture(pl.Box(bd.hw, bd.hh), { density: 0.15, friction: 0.8, filterMaskBits: 0x0001, userData: { kind: 'card' } });
+    const peg = W2.createJoint(pl.RevoluteJoint({}, game.ground, b, V(bd.x, bd.y + bd.hh)));
+    game.props.push({ type: 'card', tut: true, body: b, code: '新人', mine: true, peg, home: bd.x, homeY: bd.y });
+  }
   game.punchT = 0;
 }
 // 員工編號：code 是你的，like 是長得很像、容易看錯的
@@ -787,7 +814,8 @@ function spawn(fromRespawn) {
   commitHighlight();
   destroyGiraffe();
   removePie();
-  const cp = LEVEL.checkpoints[game.cp];
+  const cp = game.tut ? { x: tutSpawnX(), y: 0 } : LEVEL.checkpoints[game.cp]; // v8.9：新人訓練中回到這一小段的開頭
+  if (game.tut && game.tut.stage === 4) game.tut.stage = 3; // 識別證會掛回去，要重新叼
   game.g = buildGiraffe(cp.x, cp.y);
   game.state = 'run'; game.fallTimer = 0; game.upTimer = 0; game.buffer = []; game.replay = null; game.replayDelay = 0;
   game.airTime = 0; game.idle = 0; game.deathKind = null; game.prevHeadHard = 1;
@@ -799,20 +827,23 @@ function spawn(fromRespawn) {
   buildRefCells();
   buildProps();
   game.flags.ref = false; game.flags.stock = false; game.flags.seatDone = false; game.flags.cardHint = false;
-  if (fromRespawn) say('respawn', 2.4, 1); else say('start', 3.2, 0);
+  if (game.tut) { if (!fromRespawn) talk([['主播', '新人訓練開始！'], ['賽評', '這段不計時，放心摔']], 3.2, 3); }
+  else if (fromRespawn) say('respawn', 2.4, 1); else say('start', 3.2, 0);
   if (game.tip && game.tip.until === Infinity) game.tip.until = game.t + 4.5; // 復活後提示再留幾秒
   updateCopyBtn();
 }
 
 function loadMode(mode, forceIds) {
-  game.mode = mode;
+  const tut = mode === 'tutorial'; if (tut) mode = 'normal'; // v8.9 新人訓練：世界一樣是第 1 關，從起跑線左邊開始
+  game.mode = mode; game.tut = null;
   game.cfg = makeCfg(mode, forceIds);
   game.g = null; game.pie = null; game.refCells = []; game.refRails = [];
   buildWorld();
   Object.assign(game, { cp: 0, time: 0, started: false, falls: 0, deaths: 0, best: null, hlPending: null, hlPlay: null, graves: [], runSpots: {}, flags: {}, result: null, view: 'game', tip: null });
   game.boss = { phase: 'idle', t: 0, next: rnd(TUNE.bossFirst[0], TUNE.bossFirst[1]), count: 0, plan: bossPlan() };
+  if (tut) { game.tut = { stage: 0, at: game.t, doneAt: -9, neckT: 0 }; game.gateOpenAt = 0; game.tutGate = game.ground.createFixture(pl.Box(0.12, 7, V(LEVEL.tut.gate, 7), 0), { friction: 0.3, userData: { kind: 'gate' } }); }
   spawn(false);
-  document.querySelectorAll('.tab[data-mode]').forEach(t => t.classList.toggle('on', t.dataset.mode === mode));
+  document.querySelectorAll('.tab[data-mode]').forEach(t => t.classList.toggle('on', t.dataset.mode === (tut ? 'tutorial' : mode)));
   document.getElementById('achTab').classList.remove('on');
   document.getElementById('logTab').classList.remove('on');
   document.getElementById('skinTab').classList.remove('on');
@@ -842,7 +873,7 @@ function control() {
   const grav = -cfg.gravity;
   const hv = g.head.getLinearVelocity(); g.preHeadSpeed = Math.max(0, -hv.y); // 往下砸的速度才算
 
-  if ((dir || neckIn || keys.KeyW || keys.KeyKraw) && !game.started && game.state === 'run') game.started = true;
+  if ((dir || neckIn || keys.KeyW || keys.KeyKraw) && !game.started && game.state === 'run' && !game.tut) game.started = true; // v8.9：新人訓練不計時，走進第 1 關（過 0 m）才開始
   if (dir || neckIn || keys.KeyW || keys.KeyKraw) game.idle = 0; else game.idle += DT;
 
   const a = normAng(g.torso.getAngle());
@@ -1097,7 +1128,7 @@ function control() {
   // 咬
   if (keys.KeyK && !g.bite && live) { // 卡片：嘴巴靠近就咬得到
     const mouth = g.head.getWorldPoint(V(g.hw * 0.85, -g.hh * 0.2));
-    const card = (game.props || []).filter(pr => pr.type === 'card').sort((a, b) => Math.hypot(a.body.getPosition().x - mouth.x, a.body.getPosition().y - mouth.y) - Math.hypot(b.body.getPosition().x - mouth.x, b.body.getPosition().y - mouth.y)).find(pr => Math.hypot(pr.body.getPosition().x - mouth.x, pr.body.getPosition().y - mouth.y) < 0.8); // v6 放大判定
+    const card = (game.props || []).filter(pr => pr.type === 'card').sort((a, b) => Math.hypot(a.body.getPosition().x - mouth.x, a.body.getPosition().y - mouth.y) - Math.hypot(b.body.getPosition().x - mouth.x, b.body.getPosition().y - mouth.y)).find(pr => Math.hypot(pr.body.getPosition().x - mouth.x, pr.body.getPosition().y - mouth.y) < (pr.tut ? 1.3 : 0.8)); // v8.9：新人訓練的識別證判定放寬（開著嘴走過去，起步時頭會晃高） // v6 放大判定
     if (card) {
       if (card.peg) { game.world.destroyJoint(card.peg); card.peg = null; }
       g.bite = game.world.createJoint(pl.RevoluteJoint({ collideConnected: false }, g.head, card.body, mouth));
@@ -1287,10 +1318,11 @@ function rules() {
     if (c.type !== 'card' || c.peg || (g.bitCard === c)) continue;
     const cv = c.body.getLinearVelocity(); c.still = Math.hypot(cv.x, cv.y) < 0.15 ? (c.still || 0) + DT : 0;
     if (c.still > 2.5 || c.body.getPosition().y < -3) {
-      c.still = 0; c.body.setTransform(V(c.home, LEVEL.cards.y), 0); c.body.setLinearVelocity(V(0, 0)); c.body.setAngularVelocity(0);
-      c.peg = game.world.createJoint(pl.RevoluteJoint({}, game.ground, c.body, V(c.home, LEVEL.cards.y + LEVEL.cards.hh)));
+      c.still = 0; c.body.setTransform(V(c.home, c.homeY ?? LEVEL.cards.y), 0); c.body.setLinearVelocity(V(0, 0)); c.body.setAngularVelocity(0);
+      c.peg = game.world.createJoint(pl.RevoluteJoint({}, game.ground, c.body, V(c.home, (c.homeY ?? LEVEL.cards.y) + (c.tut ? LEVEL.tut.badge.hh : LEVEL.cards.hh))));
     }
   }
+  if (game.tut) tutTick(g, p);
   // ===== v4 打卡 =====
   if (alive && !game.flags.cardHint && p.x > LEVEL.cards.x - 6) { game.flags.cardHint = true; say('cardHint', 3.2, 1); }
   // v6：咬著卡跳起來，卡片碰到抬高的打卡口就打卡（不用停住）
@@ -1378,6 +1410,85 @@ function rules() {
   if (game.hlPending && game.t >= game.hlPending.at) commitHighlight();
 }
 
+// ===== v8.9 新人訓練 =====
+// stage：0 走 + 跳紙箱 → 1 低頭鑽看板 → 2 抬頭 → 3 叼識別證 → 4 跳起來刷門禁 → 5 門開了走進第 1 關（過 0 m 結束訓練、開始計時）
+// 節奏要快（使用者：不要有「怎麼還沒結束」的漫長感）：做到就馬上換下一句，不等、不倒數
+const TUT_STEP = [
+  { part: 1, title: '報到', text: () => '按住 → 往前走，碰到紙箱按 ↑ 跳過去', keys: ['KeyD', 'KeyW'] },
+  { part: 2, title: '歡迎看板', text: () => `按住${K.down}低頭，鑽過看板`, keys: ['KeyL'] },
+  { part: 2, title: '歡迎看板', text: () => `鑽過了！按${K.up}把頭抬起來`, sub: () => `走路快跌倒時：往前栽按${K.up}、往後仰按${K.down}`, keys: ['KeyJ'] },
+  { part: 3, title: '門禁', text: () => game.tut.passBadge ? '識別證在後面！按 ← 退回去叼' : `按一下${K.bite}張嘴，走到識別證前叼起來`, keys: ['KeyK', 'KeyD'], keysPass: ['KeyA', 'KeyK'] },
+  { part: 3, title: '門禁', text: () => '叼著識別證，到門禁前按 ↑ 跳起來刷卡', keys: ['KeyW'] },
+  { part: 3, title: '門禁', text: () => '門開了！往前走，開始加班', keys: ['KeyD'] },
+];
+function tutSpawnX() { const tu = LEVEL.tut, st = game.tut ? game.tut.stage : 0; return st >= 3 ? tu.sign.x2 + 2 : st >= 1 ? tu.box.x + 2 : tu.spawn; }
+function tutNext(st) { const t = game.tut; if (!t || t.stage >= st) return; t.stage = st; t.at = game.t; t.doneAt = game.t; }
+function tutTick(g, p) {
+  const t = game.tut, tu = LEVEL.tut, alive = game.state === 'run' || game.state === 'down';
+  if (!alive) return;
+  // 歡迎看板：沒按低頭、頭或上半段脖子碰到看板 → 叩！往後彈 1 m 左右
+  { const sg = tu.sign, hit = [g.head, ...g.neck.slice(-2).map(n => n.body)].some(b => { const q = b.getPosition(); return q.x > sg.x1 - 0.25 && q.x < sg.x2 + 0.2 && q.y > sg.y - 0.05; });
+    // 有按著低頭就讓他過（頭正在往下壓，晚一點按也算：重點是學會按 D）
+    if (hit && !keys.KeyL && game.t - (t.bonkAt ?? -9) > 0.6) { t.bonkAt = game.t; t.bonks = (t.bonks || 0) + 1; g.parts.forEach(b => { const v = b.getLinearVelocity(); b.setLinearVelocity(V(Math.min(v.x, 0) - 2.2, v.y)); }); if (t.stage < 1) tutNext(1); } }
+  if (t.stage === 0 && p.x > tu.box.x + 1.2) tutNext(1);
+  if (t.stage === 1 && p.x > tu.sign.x2 + 0.6) tutNext(2);
+  if (t.stage === 2) { t.neckT = keys.KeyJ ? t.neckT + DT : 0; if (t.neckT > 0.2 || p.x > tu.badge.x - 2.2) tutNext(3); }
+  if (t.stage === 3 && g.bitCard && g.bitCard.tut) tutNext(4);
+  if (t.stage === 3) { const m = g.head.getPosition().x, bx = tu.badge.x; if (m > bx + 1.2) t.passBadge = true; else if (m < bx + 0.3) t.passBadge = false; } // 走過頭了：提示退回去
+  if (t.stage === 4 && !(g.bitCard && g.bitCard.tut)) { t.stage = 3; t.at = game.t; } // 識別證掉了：重新叼
+  if (t.stage === 4) {
+    const jumping = game.t - (g.jumpAt ?? -9) < 1.3 && (!g.jumpLandAt || game.t - g.jumpLandAt < 0.1);
+    const cp = g.bitCard.body.getPosition(), r = tu.reader;
+    if (jumping && Math.abs(cp.x - r.x) < 0.85 && cp.y > r.y - 0.6 && cp.y < r.y + 2.5) { // 跟打卡機一樣：叼著卡、跳起來、卡片經過讀卡機
+      const c = g.bitCard;
+      game.world.destroyJoint(g.bite); g.bite = null; g.bitCard = null; setBite(false);
+      game.world.destroyBody(c.body); game.props = game.props.filter(pr => pr !== c);
+      game.ground.destroyFixture(game.tutGate); game.tutGate = null; game.gateOpenAt = game.t;
+      store.set('giraffe_tut', '1'); // 刷過門禁就算學會了（之後重新整理直接進第 1 關）
+      updateCopyBtn(); // 藏起「跳過訓練」
+      talk([['主播', '嗶！歡迎加入！'], ['賽評', '他還不知道，這是他最後一次準時進公司']], 3.4, 3);
+      tutNext(5);
+    }
+  }
+  if (t.stage === 5 && p.x > 0) { // 走進第 1 關：從這裡開始計時
+    game.tut = null; game.started = false; game.time = 0;
+    game.falls = 0; game.deaths = 0; game.graves = []; game.runSpots = {};
+    game.chase.x = -TUNE.chaseGap; game.cp = 0;
+    toast('新人訓練完成！', '開始計時，打卡下班就過關');
+    if (IS_TOUCH && innerHeight > innerWidth) toast('建議把手機轉橫', '畫面比較大、按鍵比較好按（直的也能玩）'); // 訓練中不跳，訓練完再提醒
+    say('start', 3.2, 0);
+    tutKeyHint(null); updateCopyBtn();
+  }
+}
+// 現在要按的鍵：功能區按鍵 / 手機按鈕閃一下
+let tutHintKeys = '';
+function tutKeyHint(list) {
+  const k = (list || []).join(','); if (k === tutHintKeys) return; tutHintKeys = k;
+  document.querySelectorAll('.key.hint, .tbtn.hint').forEach(el => el.classList.remove('hint'));
+  for (const c of list || []) document.querySelectorAll('.key[data-code="' + c + '"], .tbtn[data-touch="' + c + '"]').forEach(el => el.classList.add('hint'));
+}
+function drawTutPanel() {
+  const t = game.tut; if (!t || game.view !== 'game') { tutKeyHint(null); return; }
+  if (game.t - (t.bonkAt ?? -9) < 0.9 && game.g) { const hp = game.g.head.getPosition(); txt('叩！要低頭', sx(hp.x - 1.9), sy(hp.y - 0.2), 'bold ' + Math.round(clamp(ppm * 0.4, 14, 28)) + 'px ' + FONT, '#C00000'); } // 畫在長頸鹿上面
+  const s = TUT_STEP[t.stage]; tutKeyHint(game.state === 'run' ? (t.passBadge && s.keysPass ? s.keysPass : s.keys) : null);
+  const k = clamp(W / 700, 0.75, 1.25), maxW = W - ROW_W - 40;
+  const done = game.t - t.doneAt < 0.7; // 剛完成上一步：標題閃綠色「✔ 做得好」
+  const head = (done ? '✔ 做得好！　' : '') + '新人訓練 ' + s.part + '/3・' + s.title;
+  const f1 = 'bold ' + Math.round(14 * k) + 'px ' + FONT, f2 = 'bold ' + Math.round(21 * k) + 'px ' + FONT, f3 = Math.round(13 * k) + 'px ' + FONT;
+  const compact = H < 330; // 手機橫式很矮：只留一行（第幾段 + 說明），不然會蓋住長頸鹿
+  const lines = compact ? [] : [[head, f1, done ? '#217346' : '#7A6400']];
+  if (compact) { const fc = 'bold ' + Math.round(clamp(H / 14, 13, 17)) + 'px ' + FONT; for (const l of wrapText((done ? '✔ ' : '') + s.part + '/3　' + touchText(s.text()), maxW, fc)) lines.push([l, fc, '#1F1F1F']); }
+  else for (const l of wrapText(touchText(s.text()), maxW, f2)) lines.push([l, f2, '#1F1F1F']);
+  if (s.sub && W >= 500 && !compact) for (const l of wrapText(touchText(s.sub()), maxW, f3)) lines.push([l, f3, '#595959']);
+  // 避開畫面上的按鈕（跳過訓練、手機的回存檔點）：會疊到就往下放
+  let y = HEAD_H + (compact ? 4 : 10); const cr = cv.getBoundingClientRect(), cx = ROW_W + (W - ROW_W) / 2;
+  let pw = 0; for (const [tx, f] of lines) { ctx.font = f; pw = Math.max(pw, ctx.measureText(tx).width); } pw = Math.min(pw + 40, W - ROW_W - 16);
+  for (const el of document.querySelectorAll('#skipBtn, .tb-reset')) { if (el.hidden || !el.offsetWidth) continue; const r = el.getBoundingClientRect(), l = r.left - cr.left, rt = r.right - cr.left, b = r.bottom - cr.top; if (rt > cx - pw / 2 - 4 && l < cx + pw / 2 + 4) y = Math.max(y, b + 6); }
+  // 會蓋到長頸鹿的頭、而且地面下方有空位（手機直式）→ 改放下方
+  const ph = lines.reduce((a, [, f]) => a + parseInt(f.match(/(\d+)px/)[1], 10) + 10, 0) + 14;
+  if (game.g) { const hp = game.g.head.getPosition(), hy = sy(hp.y + 0.6), gy = sy(game.g.groundRef ?? 0) + 26; if (H - ph - 8 > gy && (t.panelLow === W || hy < y + ph + 6)) { y = H - ph - 8; t.panelLow = W; } } // 移下去後就固定（不會跟著頭上下跳）；換畫面尺寸再重算
+  centerPanel(lines, done ? '#70AD47' : '#E2A02E', done ? '#E2EFDA' : '#FFF8E1', y);
+}
 // 老闆：腳步聲警告 → 盯著看（動就死）→ 離開
 // v8.3（使用者：老闆固定 2 次，但不要每場都在同樣的地方）：前半（開場 / 欄杆後）抽 1 段、後半（拱門後 / 深淵後）抽 1 段，段內位置也隨機
 //   測試時 TUNE.bossFirst 設成很大的數字 = 關掉老闆
@@ -1650,7 +1761,7 @@ function copyResult() {
 }
 // 結算畫面右下角的「複製成績」按鈕（只在完賽時出現）
 const copyBtn = () => document.getElementById('copyBtn');
-function updateCopyBtn() { const show = game.state === 'finish' && game.result && game.view === 'game' && !rewardShowing(); const b = copyBtn(), a = document.getElementById('againBtn'); if (b) b.hidden = !show; if (a) a.hidden = !show; }
+function updateCopyBtn() { const show = game.state === 'finish' && game.result && game.view === 'game' && !rewardShowing(); const b = copyBtn(), a = document.getElementById('againBtn'); if (b) b.hidden = !show; if (a) a.hidden = !show; const sk = document.getElementById('skipBtn'); if (sk) sk.hidden = !(game.tut && game.view === 'game' && !game.gateOpenAt); }
 function placeCopyBtn() {
   const b = copyBtn(), rr = game.resultRect; if (!b || !rr) return;
   b.style.left = Math.round(rr.x + rr.w - b.offsetWidth - 8) + 'px';
@@ -1826,6 +1937,7 @@ function render() {
   drawChaseFill();
   levelOcc = []; mustOcc = [];
   drawLevel(pose);
+  drawTutScene();
   drawGiraffe(pose);
   for (const pr of game.props || []) if (pr.type === 'card') drawProp(pr);
   if (UI.leanBar && !pose.recorded) drawLeanBar(pose);
@@ -1834,6 +1946,7 @@ function render() {
   drawBoss();
   drawBossFrame();
   drawTip();
+  drawTutPanel();
   drawRHold();
   drawChaseEdge();
   drawHeaders(pose);
@@ -2073,10 +2186,90 @@ function drawChair(t, col = '#44546A', b = null) {
     ctx.fillStyle = '#7F7F7F'; ctx.fillRect(-0.28, 0.66, 0.22, 0.04); // 扶手
   });
 }
+// v8.9 董事長座椅（使用者：現實中兩張分開的椅子不會一起滑）：物理還是兩張焊死的椅子（等於一個剛體），畫面畫成一張超大的董事長座椅
+// 使用者從 3 款（黑皮 / 紅絨金框寶座 / 咖啡皮木扶手）選了咖啡皮革＋木扶手（老派主管椅）
+// 座標：以前面那張椅子（rc1）的底座中心為原點、單位公尺；座位從 -0.4S 到 gap + 0.4S
+function drawBossChair(t, b) {
+  const S = b.chairS || 1, gap = 0.85 * S, x0 = -0.4 * S, x1 = gap + 0.4 * S, cx = (x0 + x1) / 2, sw = x1 - x0;
+  const seatY = 0.49 * S, seatH = 0.16 * S;
+  const pal = { seat: '#7B4A2A', dark: '#4E2E19', trim: '#A0703F', trimD: '#6B4524', base: '#8C8C8C', tuft: '#A06A42' };
+  inLocal(t, () => {
+    ctx.lineJoin = 'round';
+    // 五爪底座 + 輪子（輪子畫在物理輪子的位置）
+    ctx.fillStyle = pal.base; ctx.fillRect(x0 + 0.1, 0.08, sw - 0.2, 0.07);
+    ctx.fillStyle = '#222'; for (const wx of [-0.3 * S, 0.3 * S, gap - 0.3 * S, gap + 0.3 * S]) { ctx.beginPath(); ctx.arc(wx, 0.06 * S, 0.06 * S, 0, 7); ctx.fill(); }
+    ctx.fillStyle = pal.base; ctx.fillRect(cx - 0.09, 0.14, 0.18, seatY - 0.12); // 氣壓棒（一根）
+    // 椅背（面對我：在遠側＝右邊），高到 2 m、往後躺一點，皮革拉扣 + 頭枕
+    const bx = x1 - 0.42, bTop = 2.0;
+    ctx.save(); ctx.translate(bx + 0.2, seatY); ctx.rotate(-0.13); ctx.translate(-bx - 0.2, -seatY);
+    ctx.fillStyle = pal.seat; ctx.strokeStyle = pal.dark; ctx.lineWidth = 0.04;
+    roundRect(bx, seatY + 0.05, 0.4, bTop - seatY, 0.12); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = pal.tuft;
+    for (let yy = seatY + 0.3; yy < bTop - 0.12; yy += 0.24) for (const xx of [bx + 0.1, bx + 0.24]) { ctx.beginPath(); ctx.arc(xx, yy + (xx > bx + 0.2 ? 0.12 : 0), 0.03, 0, 7); ctx.fill(); }
+    ctx.fillStyle = pal.dark; roundRect(bx - 0.04, bTop - 0.22, 0.42, 0.24, 0.1); ctx.fill();
+    ctx.restore();
+    // 座墊（很厚的一整塊）+ 車線
+    ctx.fillStyle = pal.seat; ctx.strokeStyle = pal.dark; ctx.lineWidth = 0.04;
+    roundRect(x0, seatY, sw, seatH, 0.07); ctx.fill(); ctx.stroke();
+    ctx.lineWidth = 0.025; ctx.beginPath(); ctx.moveTo(x0 + 0.08, seatY + seatH * 0.45); ctx.lineTo(x1 - 0.08, seatY + seatH * 0.45); ctx.stroke();
+    // 木扶手（近側那邊）
+    ctx.fillStyle = pal.trim; ctx.strokeStyle = pal.trimD; ctx.lineWidth = 0.03;
+    roundRect(x0 + 0.15, seatY + seatH + 0.28, sw - 0.6, 0.09, 0.04); ctx.fill(); ctx.stroke(); ctx.fillRect(x0 + 0.2, seatY + seatH, 0.07, 0.3); ctx.fillRect(x1 - 0.55, seatY + seatH, 0.07, 0.3);
+  });
+}
+// v8.9 新人訓練的場景：紙箱、歡迎看板、識別證鉤子、門禁讀卡機、公司入口
+function drawTutScene() {
+  const tu = LEVEL.tut; if (game.cam.x - tu.gate > 30) return;
+  const fs = (n, b = true) => (b ? 'bold ' : '') + Math.round(clamp(ppm * n, 10, 40)) + 'px ' + FONT;
+  // 左邊的牆 + 海報
+  ctx.fillStyle = '#EDEDED'; ctx.fillRect(sx(tu.wall - 3), sy(14), 3 * ppm, 14 * ppm); ctx.strokeStyle = '#A6A6A6'; ctx.lineWidth = 2; ctx.strokeRect(sx(tu.wall - 3), sy(14), 3 * ppm, 14 * ppm);
+  { const x = tu.wall + 2.6, y = 5.4, w = 4.6, h = 1.0; ctx.fillStyle = '#FFF2CC'; ctx.strokeStyle = '#BF9000'; ctx.lineWidth = 2; roundRect(sx(x - w / 2), sy(y + h / 2), w * ppm, h * ppm, 6); ctx.fill(); ctx.stroke();
+    txt('新人教育訓練（不支薪）', sx(x), sy(y), fs(0.36), '#7F6000'); }
+  // ① 紙箱
+  { const b = tu.box; ctx.fillStyle = '#D9B382'; ctx.strokeStyle = '#8C6239'; ctx.lineWidth = 2;
+    ctx.fillRect(sx(b.x - b.hw), sy(b.h), b.hw * 2 * ppm, b.h * ppm); ctx.strokeRect(sx(b.x - b.hw), sy(b.h), b.hw * 2 * ppm, b.h * ppm);
+    ctx.fillStyle = '#C9A06A'; ctx.fillRect(sx(b.x - 0.06), sy(b.h), 0.12 * ppm, b.h * ppm); // 膠帶
+    txt('新人資料', sx(b.x), sy(b.h * 0.42), fs(0.17), '#5C3D1E'); }
+  // ② 歡迎看板（從天花板吊下來）
+  { const g2 = tu.sign, cx = (g2.x1 + g2.x2) / 2, bonk = game.tut && game.t - (game.tut.bonkAt ?? -9) < 0.8; ctx.strokeStyle = '#7F7F7F'; ctx.lineWidth = 2;
+    if (bonk) { ctx.save(); ctx.translate(sx(cx), sy(g2.top + 3)); ctx.rotate(Math.sin(game.t * 40) * 0.04 * (1 - (game.t - game.tut.bonkAt) / 0.8)); ctx.translate(-sx(cx), -sy(g2.top + 3)); } // 被撞到晃一下
+    const bt = g2.y + 1.9; // 畫面上只畫 1.9 m 高（判定是「頭 / 上半段脖子高過看板底部」，沒有上限），字才不會在矮畫面被切掉
+    for (const rx of [g2.x1 + 0.3, g2.x2 - 0.3]) { ctx.beginPath(); ctx.moveTo(sx(rx), sy(bt)); ctx.lineTo(sx(rx), sy(bt + 8)); ctx.stroke(); }
+    ctx.fillStyle = '#FCE4D6'; ctx.strokeStyle = '#C55A11'; ctx.lineWidth = 3; roundRect(sx(g2.x1), sy(bt), (g2.x2 - g2.x1) * ppm, (bt - g2.y) * ppm, 6); ctx.fill(); ctx.stroke();
+    txt('歡迎', sx(cx), sy(g2.y + 1.35), fs(0.5), '#C55A11'); txt('新同事！', sx(cx), sy(g2.y + 0.6), fs(0.5), '#C55A11');
+    if (bonk) ctx.restore(); }
+  // ③ 識別證鉤子 + 牌子
+  { const bd = tu.badge, hy = bd.y + bd.hh; ctx.strokeStyle = '#595959'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(sx(bd.x), sy(hy + 0.5)); ctx.lineTo(sx(bd.x), sy(hy)); ctx.stroke();
+    if (game.tut && !game.gateOpenAt) txt('識別證領取處', sx(bd.x), sy(hy + 0.85), fs(0.24), '#2F5597'); }
+  // 門禁讀卡機（柱子 + 機器）
+  { const r = tu.reader, on = game.gateOpenAt && game.t - game.gateOpenAt < 2; ctx.fillStyle = '#A6A6A6'; ctx.fillRect(sx(r.x - 0.05), sy(r.y - 0.4), 0.1 * ppm, (r.y - 0.4) * ppm);
+    ctx.fillStyle = '#404040'; roundRect(sx(r.x - 0.3), sy(r.y + 0.4), 0.6 * ppm, 0.8 * ppm, 4); ctx.fill();
+    ctx.fillStyle = on || game.gateOpenAt ? '#70E070' : '#E05050'; ctx.beginPath(); ctx.arc(sx(r.x), sy(r.y + 0.18), Math.max(3, 0.08 * ppm), 0, 7); ctx.fill();
+    ctx.fillStyle = '#7F7F7F'; ctx.fillRect(sx(r.x - 0.18), sy(r.y - 0.05), 0.36 * ppm, 0.12 * ppm);
+    txt('門禁', sx(r.x - 0.55), sy(r.y - 0.1), fs(0.22), '#404040'); }
+  // 公司入口：玻璃門（刷卡後往上收）
+  { const gx = tu.gate, k = game.gateOpenAt ? clamp((game.t - game.gateOpenAt) / 0.5, 0, 1) : 0, lift = k * 6.6;
+    ctx.fillStyle = 'rgba(189,215,238,0.75)'; ctx.strokeStyle = '#5B9BD5'; ctx.lineWidth = 2;
+    ctx.fillRect(sx(gx - 0.12), sy(7 + lift), 0.24 * ppm, (7 - Math.min(lift, 6.6)) * ppm); ctx.strokeRect(sx(gx - 0.12), sy(7 + lift), 0.24 * ppm, (7 - Math.min(lift, 6.6)) * ppm);
+    if (!game.gateOpenAt) { ctx.save(); ctx.translate(sx(gx), sy(2.2)); ctx.rotate(-Math.PI / 2); txt('公司入口', 0, 0, fs(0.2), '#2F5597'); ctx.restore(); } // 直寫在玻璃門上（矮畫面也看得到）
+    if (game.gateOpenAt && game.t - game.gateOpenAt < 1.6) txt('嗶！', sx(tu.reader.x - 1.2), sy(tu.reader.y + 0.3), fs(0.5), '#217346'); }
+}
+function drawBadge(t) { // 新人識別證：白底、藍色抬頭、大頭照、名字
+  const bd = LEVEL.tut.badge, w = bd.hw, h = bd.hh;
+  inLocal(t, () => {
+    ctx.fillStyle = '#fff'; ctx.fillRect(-w, -h, w * 2, h * 2); ctx.strokeStyle = '#404040'; ctx.lineWidth = 0.03; ctx.strokeRect(-w, -h, w * 2, h * 2);
+    ctx.fillStyle = '#2F5597'; ctx.fillRect(-w, h - 0.16, w * 2, 0.16);
+    ctx.fillStyle = '#F2B53A'; ctx.beginPath(); ctx.arc(0, 0.08, 0.13, 0, 7); ctx.fill(); ctx.fillStyle = '#B5651D'; ctx.beginPath(); ctx.arc(0.05, 0.12, 0.035, 0, 7); ctx.fill();
+  });
+  txt('新人', sx(t.x), sy(t.y - 0.25), 'bold ' + Math.round(clamp(ppm * 0.2, 10, 16)) + 'px ' + FONT, '#111');
+}
 function drawProp(pr) {
   const p = pr.body.getPosition(), t = { x: p.x, y: p.y, a: pr.body.getAngle() };
-  if (pr.type === 'chair') { drawChair(t, pr.ride ? '#C55A11' : '#44546A', pr.body); if (pr.ride && !pr.second && Math.abs(p.x - game.cam.x) < 20) txt('辦公室椅子：按 ↑ 跳上去', sx(p.x), sy(p.y + 1.55), 'bold 14px ' + FONT, '#C55A11'); }
+  if (pr.type === 'chair' && pr.ride) { if (!pr.second) { drawBossChair(t, pr.body); if (Math.abs(p.x - game.cam.x) < 20 && !(game.g && game.g.riding)) txt('董事長座椅：按 ↑ 跳上去', sx(p.x + 0.6), sy(p.y + 2.6), 'bold 14px ' + FONT, '#C55A11'); } }
+  else if (pr.type === 'chair') { drawChair(t, '#44546A', pr.body); }
   else if (pr.type === 'box') inLocal(t, () => { const h = LEVEL.stack.box / 2; ctx.fillStyle = '#D9B382'; ctx.fillRect(-h, -h, h * 2, h * 2); ctx.strokeStyle = '#8C6239'; ctx.lineWidth = 0.025; ctx.strokeRect(-h, -h, h * 2, h * 2); ctx.beginPath(); ctx.moveTo(-h, h * 0.25); ctx.lineTo(h, h * 0.25); ctx.stroke(); });
+  else if (pr.type === 'card' && pr.tut) drawBadge(t);
   else if (pr.type === 'card') {
     // v8.1（使用者：編號幾乎貼到卡片邊緣，不好看）：字小一點，卡片畫面寬度跟著字寬、左右各留約 0.1 m（只改畫面，咬的判定不變）
     const cf = 'bold ' + Math.round(clamp(ppm * 0.32, 13, 22)) + 'px Consolas, "SF Mono", monospace'; ctx.font = cf;
@@ -3326,6 +3519,10 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.09 - v4', items: [
+    '新增「新人訓練」：第一次玩先學走、跳、低頭、抬頭、咬，刷識別證進公司後直接接第 1 關（不計時，可跳過；分頁「新人訓練」或按 0 可以重玩）',
+    '未存檔區的兩張辦公室椅子換成一張超大的「董事長座椅」（成就也改名）',
+  ] },
   { v: '2026.11.09 - v3', items: [
     '獎金紅包改成照實際大小畫：看起來碰到就咬得到（手機上旁邊會掛名稱標籤）',
     '趴在地上或躺平時不按鍵，脖子會停住，不會一直抖被老闆抓',
@@ -3534,7 +3731,7 @@ function updateHud() {
   document.getElementById('stTime').textContent = fmt(Math.max(0, game.time - bonusSec())); // v7：計時直接扣掉已拿到的獎金
   document.getElementById('stFalls').textContent = game.falls;
   document.getElementById('stDeaths').textContent = game.deaths;
-  document.getElementById('stCheck').textContent = (game.cp + 1) + '/' + LEVEL.checkpoints.length;
+  document.getElementById('stCheck').textContent = game.tut ? '新人訓練' : (game.cp + 1) + '/' + LEVEL.checkpoints.length;
   document.getElementById('stRate').textContent = rating(game.falls + game.deaths);
   // 重心偏移：虛擬傾斜角 / 失衡門檻，像設定格式化條件一樣變色
   const g = game.g, le = document.getElementById('stLean');
@@ -3559,7 +3756,7 @@ function flashSaved() { const el = document.getElementById('saved'); el.textCont
 // v1 改按鍵：方向鍵 + Z X C。程式內部仍沿用舊名稱（KeyA = 退、KeyD = 進、KeyW = 跳、KeyJ = 脖子往後、KeyK = 咬、KeyL = 脖子往前），
 // 這樣物理、老闆判定、自動跑者都不用改。實體按鍵在這裡轉換。
 // v7 改按鍵（使用者朋友回饋：筆電上 Z X C 左右手太擠）：方向鍵走 / 跳；A 抬頭、D 低頭、W 咬（點一下咬住、再點一下放開）
-const KEYMAP = { ArrowLeft: 'KeyA', ArrowRight: 'KeyD', ArrowUp: 'KeyW', KeyA: 'KeyJ', KeyD: 'KeyL', KeyW: 'KeyK', KeyR: 'KeyR', Digit1: 'Digit1', Digit2: 'Digit2', Digit3: 'Digit3', Digit4: 'Digit4', Digit5: 'Digit5' };
+const KEYMAP = { Digit0: 'Digit0', ArrowLeft: 'KeyA', ArrowRight: 'KeyD', ArrowUp: 'KeyW', KeyA: 'KeyJ', KeyD: 'KeyL', KeyW: 'KeyK', KeyR: 'KeyR', Digit1: 'Digit1', Digit2: 'Digit2', Digit3: 'Digit3', Digit4: 'Digit4', Digit5: 'Digit5' };
 // 咬住中（切換）：keys.KeyK = 有沒有在咬（物理用），keys.KeyKraw = 手指有沒有按著
 function setBite(on) {
   keys.KeyK = on;
@@ -3578,7 +3775,7 @@ function toggleView(v) {
   document.body.classList.toggle('hidepad', game.view !== 'game'); // 手機：成就、更新紀錄、造型分頁不顯示螢幕按鍵
   resize();
   game.tryOn = null; game.skinSel = null;
-  document.querySelectorAll('.tab[data-mode]').forEach(t => t.classList.toggle('on', game.view === 'game' && t.dataset.mode === game.mode));
+  document.querySelectorAll('.tab[data-mode]').forEach(t => t.classList.toggle('on', game.view === 'game' && t.dataset.mode === (game.tut ? 'tutorial' : game.mode)));
   for (const k in keys) keys[k] = false;
   updateCopyBtn();
 }
@@ -3601,7 +3798,8 @@ function pressKey(code) {
   if (code === 'Digit3') toggleView('ach');
   if (code === 'Digit4') toggleView('skin');
   if (code === 'Digit5') toggleView('log');
-  if (code === 'Digit1') { if (game.view !== 'game') toggleView(game.view); else loadMode('normal'); } // v8：從其他分頁按 1 = 回到遊戲接著跑
+  if (code === 'Digit1') { if (game.view !== 'game' && !game.tut) toggleView(game.view); else skipTut(); } // v8：從其他分頁按 1 = 回到遊戲接著跑；v8.9：新人訓練中按 1 = 跳過訓練
+  if (code === 'Digit0') { if (game.view !== 'game' && game.tut) toggleView(game.view); else loadMode('tutorial'); } // v8.9 新人訓練
   if (code === 'Digit2') lv2Teaser();
   if (game.view !== 'game') return;
   if (code === 'KeyR') { if (game.state === 'finish') loadMode(game.mode); else keys.rHoldAt = performance.now(); } // 比賽中要按住 0.5 秒
@@ -3631,7 +3829,9 @@ window.addEventListener('blur', () => { const bite = keys.KeyK; for (const k in 
 document.addEventListener('visibilitychange', () => { if (document.hidden) window.dispatchEvent(new Event('blur')); }); // 手機切到別的 App
 function setKeyUi(code, on) { const el = document.querySelector('.key[data-code="' + code + '"]'); if (el) el.classList.toggle('on', on); }
 // v8：在成就 / 造型 / 更新紀錄頁點「第 1 關」= 回到遊戲接著跑（原本會整關重來）；已經在遊戲畫面點才是重新開始
-document.querySelectorAll('.tab[data-mode]').forEach(t => t.addEventListener('click', () => { if (game.view !== 'game' && game.mode === t.dataset.mode) toggleView(game.view); else loadMode(t.dataset.mode); }));
+document.querySelectorAll('.tab[data-mode]').forEach(t => t.addEventListener('click', () => { const cur = game.tut ? 'tutorial' : game.mode; if (game.view !== 'game' && cur === t.dataset.mode) toggleView(game.view); else if (t.dataset.mode === 'normal') skipTut(); else loadMode(t.dataset.mode); }));
+function skipTut() { if (game.tut) store.set('giraffe_tut', '1'); if (game.view !== 'game') toggleView(game.view); loadMode('normal'); } // v8.9：跳過訓練也算（之後重新整理直接進第 1 關）
+document.getElementById('skipBtn').addEventListener('click', skipTut);
 document.getElementById('lv2Tab').addEventListener('click', lv2Teaser);
 document.getElementById('achTab').addEventListener('click', () => toggleView('ach'));
 document.getElementById('logTab').addEventListener('click', () => toggleView('log'));
@@ -3701,14 +3901,15 @@ document.getElementById('againBtn').addEventListener('click', () => { if (game.s
 document.getElementById('stVer').textContent = '版本 ' + VERSION;
 if (UI.big) document.getElementById('app').classList.add('big');
 resize();
-loadMode('normal');
+// v8.9（使用者選）：沒完賽過、也沒過完 / 跳過新人訓練 → 一進來先上新人訓練；其他人直接進第 1 關
+loadMode(!store.get('giraffe_tut') && !(stats.finishes > 0) ? 'tutorial' : 'normal');
 requestAnimationFrame(frame);
-if (IS_TOUCH && innerHeight > innerWidth) setTimeout(() => toast('建議把手機轉橫', '畫面比較大、按鍵比較好按（直的也能玩）'), 600); // v7
+if (IS_TOUCH && innerHeight > innerWidth && !game.tut) setTimeout(() => toast('建議把手機轉橫', '畫面比較大、按鍵比較好按（直的也能玩）'), 600); // v7（v8.9：新人訓練中改寫在說明框裡，不另外跳）
 
 // 測試用：同步跑 n 步
 function sim(n) { for (let i = 0; i < n; i++) { if (game.replay) afterReplay(); if (game.replayDelay > 0 && game.state === 'dead') { /* 讓倒數照跑 */ } step(); } }
 function spawnAt(x, y) { destroyGiraffe(); removePie(); game.g = buildGiraffe(x, y); game.state = 'run'; game.buffer = []; game.replay = null; game.replayDelay = 0; game.cam.x = x + 2; game.chase.x = x - TUNE.chaseGap; game.prevHeadHard = 1; }
-window.__game = { finish, nextReward, renderLog, renderSkins, renderAchievements, selectSkin, checkRHold, pressKey, releaseKey, setSkin: id => { skin = id; }, setHeadVis: v => { HEAD_VIS = v; }, game, keys, contacts, loadMode, spawn, spawnAt, TUNE, sim, LEVEL, stats, achieved, award, die, copyResult, draw: () => { updateCamera(1); render(); updateHud(); } };
+window.__game = { finish, nextReward, renderLog, renderSkins, renderAchievements, selectSkin, checkRHold, pressKey, releaseKey, setSkin: id => { skin = id; }, setHeadVis: v => { HEAD_VIS = v; }, render: () => render(), w2s: (x, y) => [sx(x), sy(y), ppm], game, keys, contacts, loadMode, spawn, spawnAt, TUNE, sim, LEVEL, stats, achieved, award, die, copyResult, draw: () => { updateCamera(1); render(); updateHud(); } };
 })();
 
 </script>
