@@ -1418,6 +1418,10 @@ function rules() {
 // ===== v8.9 新人訓練 =====
 // stage：0 走 + 跳紙箱 → 1 低頭鑽看板 → 2 抬頭 → 3 叼識別證 → 4 跳起來刷門禁 → 5 門開了走進第 1 關（過 0 m 結束訓練、開始計時）
 // 節奏要快（使用者：不要有「怎麼還沒結束」的漫長感）：做到就馬上換下一句，不等、不倒數
+// v8.9 歡迎看板的文案（使用者：社畜 / 新人就是得學會低頭，這種趣味文案）
+const TUT_BONK = ['叩！新人要先學會低頭', '叩！職場第一課：低頭', '叩！頭太硬了', '叩！頭這麼硬，以後怎麼開會']; // 照順序：第 1～4 次各一句，之後後兩句輪流
+const TUT_PASS = [[['主播', '鑽過去了！'], ['賽評', '職場第一課：學會低頭']], [['主播', '頭壓得很低，很好'], ['賽評', '這孩子以後會升官']], [['主播', '低頭過關'], ['賽評', '社畜的基本功']]];
+const TUT_PASS_HARD = [['主播', '終於過了'], ['賽評', '學會低頭，你就是正式員工了']]; // 撞了 3 次以上才過
 const TUT_STEP = [
   { part: 1, title: '報到', text: () => '按住 → 往前走，碰到紙箱按 ↑ 跳過去', keys: ['KeyD', 'KeyW'] },
   { part: 2, title: '歡迎看板', text: () => `按住${K.down}低頭，鑽過看板`, keys: ['KeyL'] },
@@ -1433,10 +1437,10 @@ function tutTick(g, p) {
   if (!alive) return;
   // 歡迎看板：頭或脖子撞到看板正面（碰到的部位還在看板前緣前面）→ 叩！往後彈 1 m 左右；已經鑽到看板底下、擦到底部就不算
   { const hit = contacts.signFront;
-    if (hit && game.t - (t.bonkAt ?? -9) > 0.45) { t.bonkAt = game.t; t.bonks = (t.bonks || 0) + 1; g.parts.forEach(b => { const v = b.getLinearVelocity(); b.setLinearVelocity(V(Math.min(v.x, 0) - 1.6, v.y)); }); if (t.stage < 1) tutNext(1); } }
+    if (hit && game.t - (t.bonkAt ?? -9) > 0.45) { t.bonkAt = game.t; t.bonks = (t.bonks || 0) + 1; t.bonkLine = TUT_BONK[t.bonks <= 3 ? t.bonks - 1 : 2 + ((t.bonks - 3) % 2)]; g.parts.forEach(b => { const v = b.getLinearVelocity(); b.setLinearVelocity(V(Math.min(v.x, 0) - 1.6, v.y)); }); if (t.stage < 1) tutNext(1); } }
   if (game.t - (t.bonkAt ?? -9) < 1.4 && g.balOn !== false) { g.lam *= 0.85; g.lamV = (g.lamV || 0) * 0.85; } // 被彈回去又往前衝，重心會猛晃（實測會被撐到站起來、甚至翻過去）→ 訓練中撞到看板後 1.4 秒內把晃動收掉
   if (t.stage === 0 && p.x > tu.box.x + 1.2) tutNext(1);
-  if (t.stage === 1 && p.x > tu.sign.x2 + 0.6) tutNext(2);
+  if (t.stage === 1 && p.x > tu.sign.x2 + 0.6) { tutNext(2); talk((t.bonks || 0) >= 3 ? TUT_PASS_HARD : pick(TUT_PASS), 3, 3); }
   if (t.stage === 2) { t.neckT = keys.KeyJ ? t.neckT + DT : 0; if (t.neckT > 0.2 || p.x > tu.badge.x - 2.2) tutNext(3); }
   if (t.stage === 3 && g.bitCard && g.bitCard.tut) tutNext(4);
   if (t.stage === 3) { const m = g.head.getPosition().x, bx = tu.badge.x; if (m > bx + 1.2) t.passBadge = true; else if (m < bx + 0.3) t.passBadge = false; } // 走過頭了：提示退回去
@@ -1474,7 +1478,7 @@ function tutKeyHint(list) {
 }
 function drawTutPanel() {
   const t = game.tut; if (!t || game.view !== 'game') { tutKeyHint(null); return; }
-  if (game.t - (t.bonkAt ?? -9) < 0.9 && game.g) { const hp = game.g.head.getPosition(); txt('叩！要低頭', sx(hp.x - 1.9), sy(hp.y - 0.2), 'bold ' + Math.round(clamp(ppm * 0.4, 14, 28)) + 'px ' + FONT, '#C00000'); } // 畫在長頸鹿上面
+  if (game.t - (t.bonkAt ?? -9) < 0.9 && game.g) { const hp = game.g.head.getPosition(); const bf = 'bold ' + Math.round(clamp(ppm * 0.36, 13, 24)) + 'px ' + FONT, bl = t.bonkLine || TUT_BONK[0]; ctx.font = bf; const bw = ctx.measureText(bl).width; const fitL = sx(hp.x - 0.6) - bw >= ROW_W + 8; txt(bl, fitL ? sx(hp.x - 0.6) - bw / 2 : clamp(sx(hp.x), ROW_W + 8 + bw / 2, W - 8 - bw / 2), fitL ? sy(hp.y - 0.2) : Math.max(HEAD_H + 14, sy(hp.y + 1.0)), bf, '#C00000'); } // 畫在長頸鹿上面：頭的左邊放得下就放左邊，放不下（手機直式）就放頭上方
   const s = TUT_STEP[t.stage]; tutKeyHint(game.state === 'run' ? (t.passBadge && s.keysPass ? s.keysPass : s.keys) : null);
   const k = clamp(W / 700, 0.75, 1.25), maxW = W - ROW_W - 40;
   const done = game.t - t.doneAt < 0.7; // 剛完成上一步：標題閃綠色「✔ 做得好」
@@ -2241,7 +2245,7 @@ function drawTutScene() {
     const bt = g2.top; // 畫面 = 實際碰撞範圍（3.3～5.6 m）；字放在下半部，矮畫面也看得到
     for (const rx of [g2.x1 + 0.3, g2.x2 - 0.3]) { ctx.beginPath(); ctx.moveTo(sx(rx), sy(bt)); ctx.lineTo(sx(rx), sy(bt + 8)); ctx.stroke(); }
     ctx.fillStyle = '#FCE4D6'; ctx.strokeStyle = '#C55A11'; ctx.lineWidth = 3; roundRect(sx(g2.x1), sy(bt), (g2.x2 - g2.x1) * ppm, (bt - g2.y) * ppm, 6); ctx.fill(); ctx.stroke();
-    txt('歡迎', sx(cx), sy(g2.y + 1.35), fs(0.5), '#C55A11'); txt('新同事！', sx(cx), sy(g2.y + 0.6), fs(0.5), '#C55A11');
+    txt('歡迎', sx(cx), sy(g2.y + 1.6), fs(0.5), '#C55A11'); txt('新同事！', sx(cx), sy(g2.y + 0.95), fs(0.5), '#C55A11'); txt('（請低頭通過）', sx(cx), sy(g2.y + 0.38), fs(0.24), '#843C0C');
     if (bonk) ctx.restore(); }
   // ③ 識別證鉤子 + 牌子
   { const bd = tu.badge, hy = bd.y + bd.hh; ctx.strokeStyle = '#595959'; ctx.lineWidth = 3;
@@ -3524,6 +3528,9 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.09 - v6', items: [
+    '新人訓練：「歡迎新同事」看板加了新文案（撞到、鑽過去都有，新人要先學會低頭）',
+  ] },
   { v: '2026.11.09 - v5', items: [
     '新人訓練：「歡迎新同事」看板不會再被脖子穿過去，沒低頭撞到會被彈回來',
     '新人訓練：紙箱加高，一定要按跳才過得去；叼起識別證後比較好刷卡',
