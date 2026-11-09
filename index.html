@@ -1488,7 +1488,11 @@ function drawTutPanel() {
   const fc = 'bold ' + Math.round(clamp(H / 14, 13, 17)) + 'px ' + FONT;
   const mk = maxW0 => { // 照可用寬度排好每一行，回傳 { lines, pw, ph }
     const lines = [], maxW = maxW0;
-    if (compact) { for (const l of wrapBal((done ? '✔ ' : '') + s.part + '/3　' + touchText(s.text()), maxW, fc)) lines.push([l, fc, '#1F1F1F']); }
+    if (compact) { // 手機橫式：塞不進一行就先把字縮小（最小 14 px），框小一點比較好放
+      const tx = (done ? '✔ ' : '') + s.part + '/3　' + touchText(s.text()); let f = fc;
+      for (let px = parseInt(fc.match(/(\d+)px/)[1], 10); px >= 14; px--) { f = 'bold ' + px + 'px ' + FONT; ctx.font = f; if (ctx.measureText(tx).width <= maxW) break; }
+      if (ctx.measureText(tx).width > maxW) f = fc;
+      for (const l of wrapBal(tx, maxW, f)) lines.push([l, f, '#1F1F1F']); }
     else { for (const l of wrapBal(head, maxW, f1)) lines.push([l, f1, done ? '#217346' : '#7A6400']); for (const l of wrapBal(touchText(s.text()), maxW, f2)) lines.push([l, f2, '#1F1F1F']); }
     if (s.sub && W >= 500 && !compact) for (const l of wrapBal(touchText(s.sub()), maxW, f3)) lines.push([l, f3, '#595959']);
     let pw = 0; for (const [tx, f] of lines) { ctx.font = f; pw = Math.max(pw, ctx.measureText(tx).width); }
@@ -1503,25 +1507,46 @@ function drawTutPanel() {
   const objs = tutKeyOcc.filter(r => r.x + r.w > ROW_W && r.x < W && r.y + r.h > HEAD_H && r.y < H);
   let hd = null, gy = H; if (game.g) { const hp = game.g.head.getPosition(); hd = { x: sx(hp.x) - 0.7 * ppm, y: sy(hp.y + 0.6), w: 1.4 * ppm, h: 1.2 * ppm }; gy = sy(game.g.groundRef ?? 0) + 26; }
   const top0 = HEAD_H + (compact ? 4 : 10), cands = [];
-  const addTop = (id, x0, x1, clip) => {
+  // align：'r' 靠右、'l' 靠左、沒給 = 置中
+  const addTop = (id, x0, x1, clip, align) => {
     if (clip) for (const b of btns) if (b.y < top0 + 60 && b.x < x1 && b.x + b.w > x0) { if (b.x + b.w / 2 > (x0 + x1) / 2) x1 = Math.min(x1, b.x - 6); else x0 = Math.max(x0, b.x + b.w + 6); } // 夾在按鈕旁邊，不用往下放
-    if (x1 - x0 < 170) return; const m = mk(Math.min(x1 - x0, W - ROW_W - 16) - 40), cx = (x0 + x1) / 2; let y = top0;
+    if (x1 - x0 < 240) return; // 太窄會折成好幾行的細長條，不如不放
+    // 可用寬度有記憶：還放得下（最多擠 8 px）、也沒浪費太多（< 50 px）就沿用上次的寬度，不然鏡頭輕微晃動就會一下折 2 行、一下 3 行
+    const raw = Math.min(x1 - x0, W - ROW_W - 16), wm = t.wMemo && t.wMemo.W === W ? t.wMemo : (t.wMemo = { W }); let aw = wm[id];
+    if (!(aw <= raw + 8 && aw >= raw - 50)) aw = wm[id] = Math.floor(raw / 20) * 20;
+    const m = mk(aw - 40), cx = align === 'r' ? x1 - m.pw / 2 : align === 'l' ? x0 + m.pw / 2 : (x0 + x1) / 2; let y = top0;
     for (const b of btns) if (b.x + b.w > cx - m.pw / 2 - 4 && b.x < cx + m.pw / 2 + 4) y = Math.max(y, b.y + b.h + 6);
-    cands.push({ id, cx, y, ...m });
+    cands.push({ id, cx, y, ...m, anchor: align === 'r' ? x1 : x0, align, aw });
   };
   addTop('mid', ROW_W + 8, W - 8);
   { const m = mk(W - ROW_W - 56); if (H - m.ph - 8 > gy) cands.push({ id: 'low', cx: ROW_W + (W - ROW_W) / 2, y: H - m.ph - 8, ...m }); }
-  // 左右兩邊：讓開這段要用的東西 + 頭
-  if (objs.length || hd) { const so = hd ? objs.concat([hd]) : objs; const rx = Math.max(...so.map(r => r.x + r.w)) + 10, lx = Math.min(...so.map(r => r.x)) - 10; addTop('right', rx, W - 8); addTop('right2', rx, W - 8, true); addTop('left', ROW_W + 8, lx); addTop('left2', ROW_W + 8, lx, true); }
+  // 左右兩邊：讓開這段要用的東西 + 頭；靠邊對齊、寬度有記憶（頭晃、鏡頭晃時說明框不會跟著飄、不會一直重新折行）
+  if (objs.length || hd) { const so = hd ? objs.concat([hd]) : objs, rx = Math.max(...so.map(r => r.x + r.w)) + 10, lx = Math.min(...so.map(r => r.x)) - 10; addTop('right', rx, W - 8, false, 'r'); addTop('right2', rx, W - 8, true, 'r'); addTop('left', ROW_W + 8, lx, false, 'l'); addTop('left2', ROW_W + 8, lx, true, 'l'); }
+  // 上一次的位置（左右兩邊）就算可用區域暫時變窄（頭晃過去）也保留在原地，照樣計分；真的蓋到東西才換
+  { const pp0 = t.panelPick; if (pp0 && pp0.W === W && pp0.align && !cands.some(c => c.id === pp0.id)) { const m = mk(pp0.aw - 40); cands.push({ id: pp0.id, cx: pp0.align === 'r' ? pp0.anchor - m.pw / 2 : pp0.anchor + m.pw / 2, y: pp0.y, ...m, anchor: pp0.anchor, align: pp0.align, aw: pp0.aw }); } }
   const ov = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
-  for (const c of cands) { const r = { x: c.cx - c.pw / 2 - 4, y: c.y - 4, w: c.pw + 8, h: c.ph + 8 }; c.score = objs.reduce((a, o) => a + ov(r, o) * 10, 0) + pads.reduce((a, o) => a + ov(r, o) * 10, 0) + (hd ? ov(r, hd) * 10 : 0); }
-  // 黏性：上一次的位置沒蓋到東西就不換（地面下方移過去就固定，不會跟著頭上下跳）；放在左右兩邊的，上方置中空出來就回去
-  const prev = t.panelPick && t.panelPick.W === W && cands.find(c => c.id === t.panelPick.id);
-  let pick = prev && prev.score === 0 ? prev : null;
-  if (pick && pick.id !== 'mid' && pick.id !== 'low' && cands[0].score === 0) pick = cands[0];
-  if (!pick) pick = cands.reduce((a, c) => (c.score < a.score ? c : a), cands[0]);
-  t.panelPick = { id: pick.id, W };
-  centerPanel(pick.lines, done ? '#70AD47' : '#E2A02E', done ? '#E2EFDA' : '#FFF8E1', pick.y, 0, pick.cx);
+  // hard = 蓋到這段要用的東西 / 手機按鍵（馬上換位置）；soft = 蓋到頭；softBig = 頭附近再留空間（判斷能不能搬回去用）
+  const hdBig = hd && { x: hd.x - 0.5 * ppm, y: hd.y - 1.0 * ppm, w: hd.w + ppm, h: hd.h + 2.0 * ppm };
+  const big = (o, m) => ({ x: o.x - m, y: o.y - m, w: o.w + m * 2, h: o.h + m * 2 }), objA = objs.reduce((a, o) => a + o.w * o.h, 0) + 1;
+  for (const c of cands) { const r = { x: c.cx - c.pw / 2 - 4, y: c.y - 4, w: c.pw + 8, h: c.ph + 8 }; c.hard = objs.reduce((a, o) => a + ov(r, o), 0) + pads.reduce((a, o) => a + ov(r, o), 0); c.hardBig = objs.concat(pads).reduce((a, o) => a + ov(r, big(o, 16)), 0); c.soft = hd ? ov(r, hd) : 0; c.softBig = hdBig ? ov(r, hdBig) : 0; }
+  // v8.9 後續（使用者手機橫式：站著不動，脖子自然晃，說明框在上方置中和右邊之間一直跳來跳去）：換位置要穩
+  //   - 蓋到要用的東西 / 按鍵 → 馬上換（剛換過 0.6 秒內只擦到邊不算）；只蓋到頭 → 連續蓋住 0.4 秒才換，剛換過 1.2 秒內也不換（頭晃一下就過去了）
+  //   - 搬回上方置中：頭附近也要空出來（softBig）連續 1.2 秒，而且在目前位置待超過 2 秒
+  //   - 位置改變時用滑的，不是瞬間跳過去
+  const now = game.t, pp = t.panelPick && t.panelPick.W === W ? t.panelPick : null, prev = pp && cands.find(c => c.id === pp.id), since = pp ? now - pp.at : 99;
+  if (prev && prev.hard === 0 && prev.soft > 0) { if (t.softSince == null) t.softSince = now; } else t.softSince = null;
+  const graze = prev && prev.hard > 0 && prev.hard < objA * 0.25 && since < 0.6; // 剛換過，只擦到一點邊：先不換（畫面捲動時物件在邊緣進進出出）
+  let pick = prev && (prev.hard === 0 || graze) && (prev.soft === 0 || now - t.softSince < 0.4 || since < 1.2) ? prev : null;
+  if (cands[0].hard === 0 && cands[0].softBig === 0) { if (t.midFree == null) t.midFree = now; } else t.midFree = null;
+  if (pick && pick.id !== 'mid' && pick.id !== 'low' && t.midFree != null && now - t.midFree > 1.2 && since > 2) pick = cands[0]; // 上方置中要「連續」空出 1.2 秒才搬回去（停下來頭往前低一下不算）
+  // 挑新位置：離東西 / 按鍵多留 16 px，才不會馬上又要換
+  if (!pick) { const sc = c => c.hard * 30 + c.hardBig * 10 + c.soft * 3 + c.softBig * 0.05; pick = cands.reduce((a, c) => (sc(c) < sc(a) ? c : a), cands[0]); }
+  t.panelPick = { id: pick.id, W, at: pp && pick.id === pp.id ? pp.at : pp ? now : now - 9, anchor: pick.anchor, align: pick.align, aw: pick.aw, y: pick.y };
+  const dt = clamp(now - (t.panelT ?? now), 0, 0.1); t.panelT = now;
+  let cur = t.panelCur; if (!cur || cur.W !== W) cur = t.panelCur = { cx: pick.cx, y: pick.y, W };
+  else { const k = 1 - Math.exp(-dt * 12); cur.cx += (pick.cx - cur.cx) * k; cur.y += (pick.y - cur.y) * k; if (Math.abs(pick.cx - cur.cx) < 0.5 && Math.abs(pick.y - cur.y) < 0.5) { cur.cx = pick.cx; cur.y = pick.y; } }
+  t.panelSettled = cur.cx === pick.cx && cur.y === pick.y; // 測試用（CLIPSCAN.tut）：滑動途中不算遮擋
+  centerPanel(pick.lines, done ? '#70AD47' : '#E2A02E', done ? '#E2EFDA' : '#FFF8E1', cur.y, 0, cur.cx);
 }
 // 老闆：腳步聲警告 → 盯著看（動就死）→ 離開
 // v8.3（使用者：老闆固定 2 次，但不要每場都在同樣的地方）：前半（開場 / 欄杆後）抽 1 段、後半（拱門後 / 深淵後）抽 1 段，段內位置也隨機
@@ -3558,6 +3583,7 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.09 - v8', items: ['新人訓練：站著不動時，說明框不會再左右跳來跳去，換位置改成用滑的'] },
   { v: '2026.11.09 - v7', items: ['新人訓練：說明框不會再擋住刷卡機、識別證等要用的東西（手機橫式最明顯）', '說明文字換行更整齊，標點不會跑到行首'] },
   { v: '2026.11.09 - v6', items: [
     '新人訓練：「歡迎新同事」看板加了新文案（撞到、鑽過去都有，新人要先學會低頭）',
