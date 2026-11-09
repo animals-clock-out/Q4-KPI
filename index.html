@@ -484,6 +484,8 @@ const stats = store.json('giraffe_stats', {});
 const spots = store.json('giraffe_spots', {});
 const achieved = store.json('giraffe_ach', {});
 const statInc = (k, n = 1) => { stats[k] = (stats[k] || 0) + n; store.setJson('giraffe_stats', stats); };
+// v10：成就用的「場數」：同一場只算一次（game.runAch 在 loadMode 重設，回存檔點 / 復活不重設）
+const runInc = k => { const r = game.runAch || (game.runAch = {}); if (r[k]) return stats['r_' + k] || 0; r[k] = 1; statInc('r_' + k); return stats['r_' + k]; };
 
 // ---------- 關卡 ----------
 const LEVEL = {
@@ -534,15 +536,16 @@ const ACH = [
   { id: 'first_finish', name: '新人報到', desc: '第一次完賽', skin: 'badge' },
   { id: 'no_fall', name: '完美報表', desc: '零摔倒、零陣亡完賽', skin: 'tie' },
   { id: 'fast', name: '光速下班', desc: '50 秒內完賽', skin: 'crown' }, // v8.2：原本跟打卡成就同名
-  { id: 'pit10', name: 'N/A 常客', desc: '累計掉進深淵 10 次', skin: 'hardhat', need: 10, stat: ['pit'] },
-  { id: 'boss3', name: '上班偷玩慣犯', desc: '被老闆抓到 3 次', skin: 'shades', need: 3, stat: ['boss'] },
+  // v10（使用者：朋友第一次完賽就一次解 5、6 個造型）：累計型改成算「場數」（同一場死再多次只算 1 場，stat 用 r_ 開頭），一場再亂也拿不到這些
+  { id: 'pit10', name: 'N/A 常客', desc: '累計 3 場掉進深淵', skin: 'hardhat', need: 3, stat: ['r_pit'] },
+  { id: 'boss3', name: '上班偷玩慣犯', desc: '累計 3 場被老闆抓到', skin: 'shades', need: 3, stat: ['r_boss'] },
   { id: 'actor5', name: '影帝', desc: '在老闆面前成功裝沒事 5 次', skin: 'suit', need: 5, stat: ['actor'] },
-  { id: 'ko3', name: '頭鐵', desc: '頭部 KO 3 次', skin: 'bandage', need: 3, stat: ['ko'] },
+  { id: 'ko3', name: '頭鐵', desc: '累計 3 場頭部 KO', skin: 'bandage', need: 3, stat: ['r_ko'] },
   { id: 'art9', name: '行為藝術家', desc: '摔出一次超誇張的慘劇', skin: 'mask' },
-  { id: 'pie', name: '市占率受害者', desc: '累計被圓餅圖輾過 3 次', skin: 'zoomfit', need: 3, stat: ['pie', 'chair'] },
-  { id: 'ref', name: '忘記存檔', desc: '累計掉進沒存檔的格子 3 次', skin: 'excel', need: 3, stat: ['ref'] },
-  { id: 'chase', name: '被選取框吞掉', desc: '累計被自動填滿追上 3 次', skin: 'coffee', need: 3, stat: ['chase'] },
-  { id: 'stock', name: '當沖失敗', desc: '累計在股市崩盤區摔倒 3 次', skin: 'zebra', need: 3, stat: ['stock'] },
+  { id: 'pie', name: '市占率受害者', desc: '累計 3 場被圓餅圖輾過', skin: 'zoomfit', need: 3, stat: ['r_pie'] },
+  { id: 'ref', name: '忘記存檔', desc: '累計 3 場掉進沒存檔的格子', skin: 'excel', need: 3, stat: ['r_ref'] },
+  { id: 'chase', name: '被選取框吞掉', desc: '累計 3 場被自動填滿追上', skin: 'coffee', need: 3, stat: ['r_chase'] },
+  { id: 'stock', name: '當沖失敗', desc: '累計 3 場在股市崩盤區摔倒', skin: 'zebra', need: 3, stat: ['r_stock'] },
   { id: 'tarzan', name: '人猿泰山', desc: '咬著樹枝盪過深淵', skin: 'wifi' },
   { id: 'ledge', name: '極限救援', desc: '掉進深淵時咬住崖邊，盪上來', skin: 'scarf' },
   { id: 'punch', name: '準時下班', desc: '累計打卡下班 5 次', skin: 'sticky', need: 5, stat: ['finishes'] }, // v8.7：原本第一次完賽一定同時拿到（跟「新人報到」重複）
@@ -552,7 +555,7 @@ const ACH = [
   { id: 'launch', name: '漲停板', desc: '股市反彈時起飛，平安落地', skin: 'party' },
   { id: 'sanjie', name: '三節獎金全拿', desc: '一場拿到春節、端午、中秋三包獎金', skin: 'jiejie' },
   { id: 'yearend', name: '年終入袋', desc: '在主管座位區拿走年終獎金', skin: 'tycoon' },
-  { id: 'fall10', name: '勵志哥', desc: '一場摔倒 + 陣亡 10 次以上還完賽', skin: 'burnout' },
+  { id: 'fall10', name: '勵志哥', desc: '一場摔倒 + 陣亡 20 次以上還完賽', skin: 'burnout' }, // v10：10 → 20（第一場很慘的人幾乎一定拿到）
 ];
 const SKINS = [
   { id: 'none', name: '原味' }, { id: 'badge', name: '識別證' }, { id: 'tie', name: '超長領帶' }, { id: 'crown', name: '準時下班皇冠' },
@@ -849,7 +852,7 @@ function loadMode(mode, forceIds) {
   game.cfg = makeCfg(mode, forceIds);
   game.g = null; game.pie = null; game.refCells = []; game.refRails = [];
   buildWorld();
-  Object.assign(game, { cp: 0, time: 0, started: false, falls: 0, deaths: 0, best: null, hlPending: null, hlPlay: null, graves: [], runSpots: {}, flags: {}, result: null, view: 'game', tip: null });
+  Object.assign(game, { runAch: {}, cp: 0, time: 0, started: false, falls: 0, deaths: 0, best: null, hlPending: null, hlPlay: null, graves: [], runSpots: {}, flags: {}, result: null, view: 'game', tip: null });
   game.boss = { phase: 'idle', t: 0, next: rnd(TUNE.bossFirst[0], TUNE.bossFirst[1]), count: 0, plan: bossPlan() };
   game.stageCard = tut ? { at: game.t, dur: 2.8, color: '#2F5597', bg: '#EAF1FB', title: '新人訓練', sub: '（不支薪）', lines: ['先學幾個基本動作，刷卡進公司', '這段不計時'] } : null; // v9（使用者：玩家不知道剛剛是教學）：開頭大字卡
   if (tut) { game.tut = { stage: 0, at: game.t, doneAt: -9, neckT: 0 }; game.gateOpenAt = 0; game.tutGate = game.ground.createFixture(pl.Box(0.12, 7, V(LEVEL.tut.gate, 7), 0), { friction: 0.3, userData: { kind: 'gate' } }); }
@@ -1734,7 +1737,7 @@ function fallDown() {
   const inStock = x > LEVEL.stock.x1 && x < LEVEL.stock.x2;
   game.falls++;
   game.state = 'down'; game.upTimer = 0; game.downTime = 0; game.downHinted = false;
-  if (inStock) { statInc('stock'); if (stats.stock >= 3) award('stock'); }
+  if (inStock) { statInc('stock'); if (runInc('stock') >= 3) award('stock'); }
   const tip = game.t - (game.g.tipAt ?? -9) < 3; // 重心失衡倒下
   eventTalk(inStock ? 'stockFall' : tip ? 'tipFall' : 'fall', 1, inStock ? 'stock' : 'fall');
 }
@@ -1748,13 +1751,13 @@ function die(kind) {
   if (p.y > -3) game.graves.push({ x: p.x, y: Math.max(groundY(p.x) ?? 0, 0) }); else game.graves.push({ x: p.x, y: 0, pit: true });
   if (game.graves.length > 30) game.graves.shift();
   statInc(kind);
-  if (kind === 'pit' && stats.pit >= 10) award('pit10');
-  if (kind === 'boss' && stats.boss >= 3) award('boss3');
-  if (kind === 'ko' && stats.ko >= 3) award('ko3');
+  if (kind === 'pit' && runInc('pit') >= 3) award('pit10');
+  if (kind === 'boss' && runInc('boss') >= 3) award('boss3');
+  if (kind === 'ko' && runInc('ko') >= 3) award('ko3');
   // v8.7（使用者：一場完賽同時解 5 個造型，降低重玩的動力；目標大約每 2 場解 1 個）：死一次就給的改成累計 3 次
-  if ((kind === 'pie' || kind === 'chair') && (stats.pie || 0) + (stats.chair || 0) >= 3) award('pie');
-  if (kind === 'ref' && stats.ref >= 3) award('ref');
-  if (kind === 'chase' && stats.chase >= 3) award('chase');
+  if ((kind === 'pie' || kind === 'chair') && runInc('pie') >= 3) award('pie');
+  if (kind === 'ref' && runInc('ref') >= 3) award('ref');
+  if (kind === 'chase' && runInc('chase') >= 3) award('chase');
   eventTalk(kind === 'chair' ? 'chairHit' : kind, 2, kind);
   if (kind === 'ko') g.head.applyAngularImpulse(0.4, true);
   if (kind === 'boss') { game.boss.phase = 'caught'; game.boss.t = 0; game.boss.line = pick(game.boss.mode === 'seat' ? SUP_CAUGHT : BOSS_CAUGHT); }
@@ -1797,7 +1800,7 @@ function finish() {
   award('first_finish');
   if (game.falls + game.deaths === 0) award('no_fall');
   if (t < 50) award('fast');
-  if (game.falls + game.deaths >= 10) award('fall10');
+  if (game.falls + game.deaths >= 20) award('fall10');
   updateCopyBtn();
   game.result.talk = finishTalk(game.result);
   if (game.best && game.best.frames.length > 20) game.hlPlay = { frames: game.best.frames, t: 0 };
@@ -3692,7 +3695,7 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [ // v10 起（使用者要求）：一天一筆；同一天再發新版就把內容加進當天那筆、v 改成最新版本號（from 是當天第一版，頁面標題顯示「v1 ~ v最新」，看得出那天改了幾版；狀態列只顯示最新版本）。只寫玩家感覺得到的改變，不寫開發者事項和細部設定值
-  { v: '2026.11.09 - v10', from: 1, items: [
+  { v: '2026.11.09 - v11', from: 1, items: [
     '新增「新人訓練」：第一次玩先學基本動作（可跳過，按 0 重玩），開頭和結束都有大字提示',
     '電腦版：字依螢幕大小自動放大，畫面底部有按鍵說明',
     '手機直式：按鍵移到草地上，畫面更大',
@@ -3700,7 +3703,7 @@ const VERSIONS = [ // v10 起（使用者要求）：一天一筆；同一天再
     '打卡區：叼著卡走過卡片架，員工編號會再出現',
     '往回走拿紅包時，選取框會停住；紅包看起來碰到就咬得到',
     '主管巡視的預告變短，分得出「走過來」和「在看」',
-    '成就要多玩幾場才拿得到，成就頁會顯示進度',
+    '成就要多玩幾場才拿得到（同一場死很多次只算一場），成就頁會顯示進度',
     '完賽後有「再加一次班」按鈕',
     '平地跳不會再莫名後空翻；躲老闆時倒地，提示不會再一閃一閃',
   ] },
