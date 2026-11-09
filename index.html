@@ -1036,7 +1036,11 @@ function control() {
   }
   // 脖子
   const k = g.neckMass * game.cfg.neckSegs * game.cfg.segLen / 2; // 脖子越長，力矩臂越長，肌力也要跟著放大（以原本 2 m 為準）
-  const autoPush = !neckIn && a < -0.45 && contacts.head.size > 0 && !hangB && game.state === 'run' && !(game.t - (g.tipAt ?? -9) < 2.5); // 重心失衡倒下時不幫忙撐
+  // v8.8（使用者：脖子往前倒在地上時身體一直抖，被老闆抓）：原本只要臉朝下、頭碰地就自動把頭往地上撐（幫忙站起來），沒按鍵也一直撐 → 一直抖。
+  //   改成：有按方向鍵 / 跳（想起來）才幫忙撐，老闆在看的時候不撐；什麼都沒按、而且身體或頭躺在地上時，脖子放鬆「停住」，不再一直出力
+  const tryMove = dir || keys.KeyW;
+  const autoPush = tryMove && !neckIn && a < -0.45 && contacts.head.size > 0 && !hangB && game.state === 'run' && game.boss.phase !== 'look' && !(game.t - (g.tipAt ?? -9) < 2.5); // 重心失衡倒下時不幫忙撐
+  const resting = !anyKey && !hangB && (game.state === 'down' || ((contacts.body || contacts.head.size > 0) && Math.abs(a) > 0.45));
   // 彈簧格彈起的前 0.45 秒自動把脖子往後拉（頭抬高），不然低著頭起跳，頭會先撞到拱門下緣
   const springLift = game.t < (g.springNeckUntil ?? -9);
   const nIn = springLift ? -1 : autoPush ? 0.7 : neckIn;
@@ -1049,6 +1053,7 @@ function control() {
     const target = i === 0 ? baseT : segT;
     if (i === 0) g.neckCmd += (target - g.neckCmd) * 0.2; // 脖子大約要 0.2 秒才甩到位
     const err = target - n.joint.getJointAngle();
+    if (resting && !springLift) { n.joint.setMotorSpeed(0); n.joint.setMaxMotorTorque((i === 0 ? TUNE.neckHold : TUNE.neckHold * 0.6) * k); return; } // 躺著：脖子停住不出力（像煞車），不會一直抖
     if (i === 0) {
       n.joint.setMotorSpeed(clamp(err * (active ? 16 : 8), -14, 14));
       n.joint.setMaxMotorTorque((active ? (hangB ? TUNE.pump : 60) : (hangB ? TUNE.hangHold : TUNE.neckHold)) * k);
@@ -1105,7 +1110,9 @@ function control() {
   if (keys.KeyK && live) { // v7 獎金：咬住中、嘴巴靠近就叼走（不會黏在嘴上）
     const mouth = g.head.getWorldPoint(V(g.hw * 0.85, -g.hh * 0.2));
     for (const bz of LEVEL.bonuses) {
-      if (game.flags['b_' + bz.id] || Math.hypot(mouth.x - bz.x, mouth.y - bz.y) > (bz.r || 0.75)) continue;
+      // v8.8（使用者：手機橫式年終紅包看起來嘴巴碰到了，按咬卻沒叼到）：判定 =「嘴巴碰到畫面上看到的紅包（外加 0.35 m）」或原本的半徑
+      const vw = bonusW(bz) / ppm, inBox = Math.abs(mouth.x - bz.x) <= vw / 2 + 0.35 && Math.abs(mouth.y - bz.y) <= vw / 3 + 0.35;
+      if (game.flags['b_' + bz.id] || (!inBox && Math.hypot(mouth.x - bz.x, mouth.y - bz.y) > (bz.r || 0.75))) continue;
       game.flags['b_' + bz.id] = game.t;
       const sec = bz.year ? TUNE.bonusYear : TUNE.bonusJie;
       toast(bz.name + '入袋！', '完賽時間折抵 ' + sec + ' 秒', bz.color);
@@ -2361,19 +2368,21 @@ function drawRouteSign() {
   levelOcc.push({ x: x - 4, y: y - 4, w: w + 8, h: h + 8 });
 }
 // v7：獎金袋（三節：紅 / 綠 / 橘；年終：金色、比較大、會閃）
+const bonusW = bz => Math.max(0.6 * ppm, 22) * (bz.year ? 1.35 : 1); // 獎金畫面上的寬度（px），咬的判定也用它
 function drawBonus() {
   for (const bz of LEVEL.bonuses) {
     const got = game.flags['b_' + bz.id];
     if (got && game.t - got > 1.2) continue;
     const fly = got ? (game.t - got) : 0, x = sx(bz.x), y = sy(bz.y + 0.06 * Math.sin(game.t * 3 + bz.x) + fly * 2.5);
     if (x < -120 || x > W + 120) continue;
-    const big = bz.year ? 1.35 : 1, w = Math.max(0.6 * ppm, 46) * big, h = w * 2 / 3; // v8.2（使用者：手機直式紅包太小看不出是什麼）：畫面上至少 46 px 寬（只改畫面，咬的判定不變）
+    const big = bz.year ? 1.35 : 1, w = bonusW(bz), h = w * 2 / 3, small = w < 40; // v8.8：紅包照實際大小畫（只保底 22 px），看起來碰到就真的咬得到；太小時旁邊另外掛名稱標籤（原本 v8.2 畫成至少 46 px，手機橫式看起來比實際大 3 倍，造成「明明碰到卻咬不到」）
     ctx.save(); ctx.globalAlpha = got ? Math.max(0, 1 - fly / 1.2) : 1;
     const near = game.g && Math.hypot(game.g.head.getPosition().x - bz.x, game.g.head.getPosition().y - bz.y) < 2.2 && !(bz.r && game.g.support > 0); // 春節（bz.r）只在空中提示，對岸走路時不會一閃一閃
     if ((near || bz.year) && !got) { ctx.fillStyle = bz.year ? 'rgba(255,215,0,' + (0.3 + 0.15 * Math.sin(game.t * 6)).toFixed(2) + ')' : 'rgba(255,192,0,.35)'; ctx.beginPath(); ctx.ellipse(x, y, w * 0.85, h * 1.15, 0, 0, 7); ctx.fill(); }
     ctx.fillStyle = bz.color; ctx.strokeStyle = '#3A2E00'; ctx.lineWidth = 1.5; ctx.fillRect(x - w / 2, y - h / 2, w, h); ctx.strokeRect(x - w / 2, y - h / 2, w, h);
     ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.moveTo(x - w / 2, y - h / 2); ctx.lineTo(x, y); ctx.lineTo(x + w / 2, y - h / 2); ctx.stroke();
-    txt(bz.short, x, y + h * 0.18, 'bold ' + Math.max(13, Math.round(w * 0.26)) + 'px ' + FONT, '#FFF');
+    if (!small) txt(bz.short, x, y + h * 0.18, 'bold ' + Math.max(13, Math.round(w * 0.26)) + 'px ' + FONT, '#FFF');
+    else if (!got && !near) { const lf = 'bold 12px ' + FONT; ctx.font = lf; const lw2 = ctx.measureText(bz.name).width + 12, ly = y - h / 2 - 13; ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.strokeStyle = bz.color; ctx.lineWidth = 1; roundRect(x - lw2 / 2, ly - 9, lw2, 18, 9); ctx.fill(); ctx.stroke(); txt(bz.name, x, ly, lf, bz.color); } // 名稱標籤（例如「年終獎金」）
     if (!got) { const r = { x: x - Math.max(w, 90) / 2 - 6, y: y - h * 1.1 - 14, w: Math.max(w, 90) + 12, h: h * 1.6 + 20 }; levelOcc.push(r); mustOcc.push({ x: x - w / 2 - 4, y: y - h / 2 - 4, w: w + 8, h: h + 8 }); } // v8.1：獎金（含上方「咬得到！」）不要被主播註解、樹枝註解蓋住
     if (got) txt('+' + bz.name + '　−' + (bz.year ? TUNE.bonusYear : TUNE.bonusJie) + ' 秒', x, y - h, 'bold 14px ' + FONT, bz.color);
     else if (near) txt(`咬得到！按${K.bite}`.trim(), x, y - h * 1.1 - 7 < HEAD_H + 2 ? y + h * 1.1 : y - h * 1.1, 'bold 13px ' + FONT, '#C55A11'); // v8.5：太靠近畫面頂端就改放在獎金下面
@@ -3317,6 +3326,10 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.09 - v3', items: [
+    '獎金紅包改成照實際大小畫：看起來碰到就咬得到（手機上旁邊會掛名稱標籤）',
+    '趴在地上或躺平時不按鍵，脖子會停住，不會一直抖被老闆抓',
+  ] },
   { v: '2026.11.09 - v2', items: [
     '成就改成要多玩幾場才拿得到（例如被圓餅圖輾過、掉進未存檔格子要累計 3 次），成就頁會顯示目前進度',
     '「準時下班」改成累計打卡下班 5 次',
