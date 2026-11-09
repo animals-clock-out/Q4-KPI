@@ -1480,23 +1480,48 @@ function drawTutPanel() {
   const t = game.tut; if (!t || game.view !== 'game') { tutKeyHint(null); return; }
   if (game.t - (t.bonkAt ?? -9) < 0.9 && game.g) { const hp = game.g.head.getPosition(); const bf = 'bold ' + Math.round(clamp(ppm * 0.36, 13, 24)) + 'px ' + FONT, bl = t.bonkLine || TUT_BONK[0]; ctx.font = bf; const bw = ctx.measureText(bl).width; const fitL = sx(hp.x - 0.6) - bw >= ROW_W + 8; txt(bl, fitL ? sx(hp.x - 0.6) - bw / 2 : clamp(sx(hp.x), ROW_W + 8 + bw / 2, W - 8 - bw / 2), fitL ? sy(hp.y - 0.2) : Math.max(HEAD_H + 14, sy(hp.y + 1.0)), bf, '#C00000'); } // 畫在長頸鹿上面：頭的左邊放得下就放左邊，放不下（手機直式）就放頭上方
   const s = TUT_STEP[t.stage]; tutKeyHint(game.state === 'run' ? (t.passBadge && s.keysPass ? s.keysPass : s.keys) : null);
-  const k = clamp(W / 700, 0.75, 1.25), maxW = W - ROW_W - 40;
+  const k = clamp(W / 700, 0.75, 1.25);
   const done = game.t - t.doneAt < 0.7; // 剛完成上一步：標題閃綠色「✔ 做得好」
   const head = (done ? '✔ 做得好！　' : '') + '新人訓練 ' + s.part + '/3・' + s.title;
   const f1 = 'bold ' + Math.round(14 * k) + 'px ' + FONT, f2 = 'bold ' + Math.round(21 * k) + 'px ' + FONT, f3 = Math.round(13 * k) + 'px ' + FONT;
   const compact = H < 330; // 手機橫式很矮：只留一行（第幾段 + 說明），不然會蓋住長頸鹿
-  const lines = compact ? [] : [[head, f1, done ? '#217346' : '#7A6400']];
-  if (compact) { const fc = 'bold ' + Math.round(clamp(H / 14, 13, 17)) + 'px ' + FONT; for (const l of wrapText((done ? '✔ ' : '') + s.part + '/3　' + touchText(s.text()), maxW, fc)) lines.push([l, fc, '#1F1F1F']); }
-  else for (const l of wrapText(touchText(s.text()), maxW, f2)) lines.push([l, f2, '#1F1F1F']);
-  if (s.sub && W >= 500 && !compact) for (const l of wrapText(touchText(s.sub()), maxW, f3)) lines.push([l, f3, '#595959']);
-  // 避開畫面上的按鈕（跳過訓練、手機的回存檔點）：會疊到就往下放
-  let y = HEAD_H + (compact ? 4 : 10); const cr = cv.getBoundingClientRect(), cx = ROW_W + (W - ROW_W) / 2;
-  let pw = 0; for (const [tx, f] of lines) { ctx.font = f; pw = Math.max(pw, ctx.measureText(tx).width); } pw = Math.min(pw + 40, W - ROW_W - 16);
-  for (const el of document.querySelectorAll('#skipBtn, .tb-reset')) { if (el.hidden || !el.offsetWidth) continue; const r = el.getBoundingClientRect(), l = r.left - cr.left, rt = r.right - cr.left, b = r.bottom - cr.top; if (rt > cx - pw / 2 - 4 && l < cx + pw / 2 + 4) y = Math.max(y, b + 6); }
-  // 會蓋到長頸鹿的頭、而且地面下方有空位（手機直式）→ 改放下方
-  const ph = lines.reduce((a, [, f]) => a + parseInt(f.match(/(\d+)px/)[1], 10) + 10, 0) + 14;
-  if (game.g) { const hp = game.g.head.getPosition(), hy = sy(hp.y + 0.6), gy = sy(game.g.groundRef ?? 0) + 26; if (H - ph - 8 > gy && (t.panelLow === W || hy < y + ph + 6)) { y = H - ph - 8; t.panelLow = W; } } // 移下去後就固定（不會跟著頭上下跳）；換畫面尺寸再重算
-  centerPanel(lines, done ? '#70AD47' : '#E2A02E', done ? '#E2EFDA' : '#FFF8E1', y);
+  const fc = 'bold ' + Math.round(clamp(H / 14, 13, 17)) + 'px ' + FONT;
+  const mk = maxW0 => { // 照可用寬度排好每一行，回傳 { lines, pw, ph }
+    const lines = [], maxW = maxW0;
+    if (compact) { for (const l of wrapBal((done ? '✔ ' : '') + s.part + '/3　' + touchText(s.text()), maxW, fc)) lines.push([l, fc, '#1F1F1F']); }
+    else { for (const l of wrapBal(head, maxW, f1)) lines.push([l, f1, done ? '#217346' : '#7A6400']); for (const l of wrapBal(touchText(s.text()), maxW, f2)) lines.push([l, f2, '#1F1F1F']); }
+    if (s.sub && W >= 500 && !compact) for (const l of wrapBal(touchText(s.sub()), maxW, f3)) lines.push([l, f3, '#595959']);
+    let pw = 0; for (const [tx, f] of lines) { ctx.font = f; pw = Math.max(pw, ctx.measureText(tx).width); }
+    return { lines, pw: pw + 40, ph: lines.reduce((a, [, f]) => a + parseInt(f.match(/(\d+)px/)[1], 10) + 10, 0) + 14 };
+  };
+  // v8.9 後續（使用者手機橫式：說明框蓋住讀卡機）：候選位置 = 上方置中 → 地面下方（手機直式空間大）→ 重要東西的右邊 → 左邊，
+  //   挑不會蓋到「這一段要用的東西」（tutKeyOcc：紙箱、看板、識別證、讀卡機）、手機按鍵、長頸鹿頭的位置
+  const cr = cv.getBoundingClientRect(), rel = el => { const r = el.getBoundingClientRect(); return { x: r.left - cr.left, y: r.top - cr.top, w: r.width, h: r.height }; };
+  const vis = el => !el.hidden && el.offsetWidth;
+  const btns = [...document.querySelectorAll('#skipBtn, .tb-reset')].filter(vis).map(rel); // 會疊到就往下放
+  const pads = [...document.querySelectorAll('.tbtn:not(.tb-reset)')].filter(vis).map(rel);
+  const objs = tutKeyOcc.filter(r => r.x + r.w > ROW_W && r.x < W && r.y + r.h > HEAD_H && r.y < H);
+  let hd = null, gy = H; if (game.g) { const hp = game.g.head.getPosition(); hd = { x: sx(hp.x) - 0.7 * ppm, y: sy(hp.y + 0.6), w: 1.4 * ppm, h: 1.2 * ppm }; gy = sy(game.g.groundRef ?? 0) + 26; }
+  const top0 = HEAD_H + (compact ? 4 : 10), cands = [];
+  const addTop = (id, x0, x1, clip) => {
+    if (clip) for (const b of btns) if (b.y < top0 + 60 && b.x < x1 && b.x + b.w > x0) { if (b.x + b.w / 2 > (x0 + x1) / 2) x1 = Math.min(x1, b.x - 6); else x0 = Math.max(x0, b.x + b.w + 6); } // 夾在按鈕旁邊，不用往下放
+    if (x1 - x0 < 170) return; const m = mk(Math.min(x1 - x0, W - ROW_W - 16) - 40), cx = (x0 + x1) / 2; let y = top0;
+    for (const b of btns) if (b.x + b.w > cx - m.pw / 2 - 4 && b.x < cx + m.pw / 2 + 4) y = Math.max(y, b.y + b.h + 6);
+    cands.push({ id, cx, y, ...m });
+  };
+  addTop('mid', ROW_W + 8, W - 8);
+  { const m = mk(W - ROW_W - 56); if (H - m.ph - 8 > gy) cands.push({ id: 'low', cx: ROW_W + (W - ROW_W) / 2, y: H - m.ph - 8, ...m }); }
+  // 左右兩邊：讓開這段要用的東西 + 頭
+  if (objs.length || hd) { const so = hd ? objs.concat([hd]) : objs; const rx = Math.max(...so.map(r => r.x + r.w)) + 10, lx = Math.min(...so.map(r => r.x)) - 10; addTop('right', rx, W - 8); addTop('right2', rx, W - 8, true); addTop('left', ROW_W + 8, lx); addTop('left2', ROW_W + 8, lx, true); }
+  const ov = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
+  for (const c of cands) { const r = { x: c.cx - c.pw / 2 - 4, y: c.y - 4, w: c.pw + 8, h: c.ph + 8 }; c.score = objs.reduce((a, o) => a + ov(r, o) * 10, 0) + pads.reduce((a, o) => a + ov(r, o) * 10, 0) + (hd ? ov(r, hd) * 10 : 0); }
+  // 黏性：上一次的位置沒蓋到東西就不換（地面下方移過去就固定，不會跟著頭上下跳）；放在左右兩邊的，上方置中空出來就回去
+  const prev = t.panelPick && t.panelPick.W === W && cands.find(c => c.id === t.panelPick.id);
+  let pick = prev && prev.score === 0 ? prev : null;
+  if (pick && pick.id !== 'mid' && pick.id !== 'low' && cands[0].score === 0) pick = cands[0];
+  if (!pick) pick = cands.reduce((a, c) => (c.score < a.score ? c : a), cands[0]);
+  t.panelPick = { id: pick.id, W };
+  centerPanel(pick.lines, done ? '#70AD47' : '#E2A02E', done ? '#E2EFDA' : '#FFF8E1', pick.y, 0, pick.cx);
 }
 // 老闆：腳步聲警告 → 盯著看（動就死）→ 離開
 // v8.3（使用者：老闆固定 2 次，但不要每場都在同樣的地方）：前半（開場 / 欄杆後）抽 1 段、後半（拱門後 / 深淵後）抽 1 段，段內位置也隨機
@@ -1944,9 +1969,9 @@ function render() {
   drawGrid();
   const pose = currentPose();
   drawChaseFill();
-  levelOcc = []; mustOcc = [];
+  levelOcc = []; mustOcc = []; tutKeyOcc = [];
   drawLevel(pose);
-  drawTutScene();
+  drawTutScene(); levelOcc.push(...tutKeyOcc); // 主播註解也別蓋住這一段要用的東西
   drawGiraffe(pose);
   for (const pr of game.props || []) if (pr.type === 'card') drawProp(pr);
   if (UI.leanBar && !pose.recorded) drawLeanBar(pose);
@@ -2238,7 +2263,8 @@ function drawTutScene() {
   { const b = tu.box; ctx.fillStyle = '#D9B382'; ctx.strokeStyle = '#8C6239'; ctx.lineWidth = 2;
     ctx.fillRect(sx(b.x - b.hw), sy(b.h), b.hw * 2 * ppm, b.h * ppm); ctx.strokeRect(sx(b.x - b.hw), sy(b.h), b.hw * 2 * ppm, b.h * ppm);
     ctx.fillStyle = '#C9A06A'; ctx.fillRect(sx(b.x - 0.06), sy(b.h), 0.12 * ppm, b.h * ppm); // 膠帶
-    txt('新人資料', sx(b.x), sy(b.h * 0.42), fs(0.17), '#5C3D1E'); }
+    txt('新人資料', sx(b.x), sy(b.h * 0.42), fs(0.17), '#5C3D1E');
+    if (game.tut && game.tut.stage === 0) tutKeyOcc.push({ x: sx(b.x - b.hw) - 6, y: sy(b.h) - 6, w: b.hw * 2 * ppm + 12, h: b.h * ppm + 12 }); }
   // ② 歡迎看板（從天花板吊下來）
   { const g2 = tu.sign, cx = (g2.x1 + g2.x2) / 2, bonk = game.tut && game.t - (game.tut.bonkAt ?? -9) < 0.8; ctx.strokeStyle = '#7F7F7F'; ctx.lineWidth = 2;
     if (bonk) { ctx.save(); ctx.translate(sx(cx), sy(g2.top + 3)); ctx.rotate(Math.sin(game.t * 40) * 0.04 * (1 - (game.t - game.tut.bonkAt) / 0.8)); ctx.translate(-sx(cx), -sy(g2.top + 3)); } // 被撞到晃一下
@@ -2246,17 +2272,20 @@ function drawTutScene() {
     for (const rx of [g2.x1 + 0.3, g2.x2 - 0.3]) { ctx.beginPath(); ctx.moveTo(sx(rx), sy(bt)); ctx.lineTo(sx(rx), sy(bt + 8)); ctx.stroke(); }
     ctx.fillStyle = '#FCE4D6'; ctx.strokeStyle = '#C55A11'; ctx.lineWidth = 3; roundRect(sx(g2.x1), sy(bt), (g2.x2 - g2.x1) * ppm, (bt - g2.y) * ppm, 6); ctx.fill(); ctx.stroke();
     txt('歡迎', sx(cx), sy(g2.y + 1.6), fs(0.5), '#C55A11'); txt('新同事！', sx(cx), sy(g2.y + 0.95), fs(0.5), '#C55A11'); txt('（請低頭通過）', sx(cx), sy(g2.y + 0.38), fs(0.24), '#843C0C');
-    if (bonk) ctx.restore(); }
+    if (bonk) ctx.restore();
+    if (game.tut && game.tut.stage === 1) tutKeyOcc.push({ x: sx(g2.x1) - 6, y: sy(bt) - 6, w: (g2.x2 - g2.x1) * ppm + 12, h: (bt - g2.y) * ppm + 12 }); }
   // ③ 識別證鉤子 + 牌子
   { const bd = tu.badge, hy = bd.y + bd.hh; ctx.strokeStyle = '#595959'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(sx(bd.x), sy(hy + 0.5)); ctx.lineTo(sx(bd.x), sy(hy)); ctx.stroke();
-    if (game.tut && !game.gateOpenAt) txt('識別證領取處', sx(bd.x), sy(hy + 0.85), fs(0.24), '#2F5597'); }
+    if (game.tut && !game.gateOpenAt) txt('識別證領取處', sx(bd.x), sy(hy + 0.85), fs(0.24), '#2F5597');
+    if (game.tut && (game.tut.stage === 2 || game.tut.stage === 3)) tutKeyOcc.push({ x: sx(bd.x - 1.0), y: sy(hy + 1.1), w: 2.0 * ppm, h: (1.1 + bd.hh * 2 + 0.1) * ppm }); }
   // 門禁讀卡機（柱子 + 機器）
   { const r = tu.reader, on = game.gateOpenAt && game.t - game.gateOpenAt < 2; ctx.fillStyle = '#A6A6A6'; ctx.fillRect(sx(r.x - 0.05), sy(r.y - 0.4), 0.1 * ppm, (r.y - 0.4) * ppm);
     ctx.fillStyle = '#404040'; roundRect(sx(r.x - 0.3), sy(r.y + 0.4), 0.6 * ppm, 0.8 * ppm, 4); ctx.fill();
     ctx.fillStyle = on || game.gateOpenAt ? '#70E070' : '#E05050'; ctx.beginPath(); ctx.arc(sx(r.x), sy(r.y + 0.18), Math.max(3, 0.08 * ppm), 0, 7); ctx.fill();
     ctx.fillStyle = '#7F7F7F'; ctx.fillRect(sx(r.x - 0.18), sy(r.y - 0.05), 0.36 * ppm, 0.12 * ppm);
-    txt('門禁', sx(r.x - 0.55), sy(r.y - 0.1), fs(0.22), '#404040'); }
+    txt('門禁', sx(r.x - 0.55), sy(r.y - 0.1), fs(0.22), '#404040');
+    if (game.tut && game.tut.stage >= 3 && !game.gateOpenAt) tutKeyOcc.push({ x: sx(r.x - 1.0), y: sy(r.y + 0.6), w: 1.45 * ppm, h: 1.0 * ppm }); }
   // 公司入口：玻璃門（刷卡後往上收）
   { const gx = tu.gate, k = game.gateOpenAt ? clamp((game.t - game.gateOpenAt) / 0.5, 0, 1) : 0, lift = k * 6.6;
     ctx.fillStyle = 'rgba(189,215,238,0.75)'; ctx.strokeStyle = '#5B9BD5'; ctx.lineWidth = 2;
@@ -2518,8 +2547,8 @@ function bossPanel(title, sub, sus) {
   occupied.push({ x: px - 4, y: py - 4, w: pw + 8, h: ph + 8 }); topOcc.push(occupied[occupied.length - 1]);
 }
 // 畫面中央的提示面板（老闆警告、死亡提示用）。lines: [[文字, 字型, 顏色], ...]，extra = 面板底部多留的高度
-function centerPanel(lines, color, bg, y, extra = 0) {
-  const cx = ROW_W + (W - ROW_W) / 2;
+function centerPanel(lines, color, bg, y, extra = 0, cx0) {
+  const cx = cx0 ?? ROW_W + (W - ROW_W) / 2;
   let w = 0; const hs = lines.map(([t, f]) => { ctx.font = f; w = Math.max(w, ctx.measureText(t).width); return parseInt(f.match(/(\d+)px/)[1], 10) + 10; });
   w = Math.min(w + 40, W - ROW_W - 16); const h = hs.reduce((a, b) => a + b, 0) + 14 + extra;
   const x = cx - w / 2;
@@ -3157,6 +3186,7 @@ const WHO_COLOR = { '主播': '#7A6400', '賽評': '#1F4E79' };
 let occupied = [];
 let topOcc = []; // v8：高優先的面板（老闆 / 主管彈窗、陣亡提示）。主播註解擋到這些就先不顯示，不疊在一起
 let mustOcc = []; // v8.1：絕對不能蓋住的場景物件（還沒拿的獎金）：主播註解找不到空位時寧可先不顯示
+let tutKeyOcc = []; // v8.9 後續：新人訓練這一段要用的東西（紙箱、看板、識別證、讀卡機），說明框不能蓋住
 let levelOcc = []; // 場景裡要讓主播註解避開的東西（打卡機、員工編號牌），drawLevel 時收集
 const overlaps = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 const overlapArea = (a, b) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
@@ -3528,6 +3558,7 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [
+  { v: '2026.11.09 - v7', items: ['新人訓練：說明框不會再擋住刷卡機、識別證等要用的東西（手機橫式最明顯）', '說明文字換行更整齊，標點不會跑到行首'] },
   { v: '2026.11.09 - v6', items: [
     '新人訓練：「歡迎新同事」看板加了新文案（撞到、鑽過去都有，新人要先學會低頭）',
   ] },
@@ -3706,10 +3737,24 @@ function drawScrollBar(v) {
   const sc = game.pageScroll[v] || 0, bh = Math.max(30, H * H / ch), by = (H - bh) * sc / (ch - H);
   ctx.fillStyle = 'rgba(0,0,0,.28)'; roundRect(W - 8, by + 2, 5, bh - 4, 2.5); ctx.fill();
 }
+const balCache = new Map();
+function wrapBal(t, maxW, font) { // 折行但每行長度平均（不會最後一行只剩一個字）；結果快取，不用每幀重算
+  const key = t + '|' + Math.round(maxW) + '|' + font; let r = balCache.get(key); if (r) return r;
+  r = wrapText(t, maxW, font); const n = r.length;
+  if (n > 1) { let w = maxW; while (w > 60) { const r2 = wrapText(t, w - 6, font); if (r2.length !== n) break; r = r2; w -= 6; } }
+  if (balCache.size > 300) balCache.clear(); balCache.set(key, r); return r;
+}
 function wrapText(t, maxW, font) {
   ctx.font = font; if (ctx.measureText(t).width <= maxW) return [t];
   const out = []; let line = '';
-  for (const ch of t) { if (ctx.measureText(line + ch).width > maxW && line) { out.push(line); line = ch.trim() ? ch : ''; } else line += ch; }
+  const CLOSE = '」』）)，。、！？：；…', OPEN = '「『（(';
+  for (const ch of t) {
+    if (ctx.measureText(line + ch).width > maxW && line) { // 標點不放行首（「」跳過去」這種）：結尾標點帶著前一個字一起換行，開頭標點移到下一行
+      let carry = ''; if (CLOSE.includes(ch) && line.length > 1) { carry = line.slice(-1); line = line.slice(0, -1); }
+      while (line.length > 1 && OPEN.includes(line[line.length - 1])) { carry = line[line.length - 1] + carry; line = line.slice(0, -1); }
+      out.push(line); line = carry + (ch.trim() || carry ? ch : '');
+    } else line += ch;
+  }
   if (line) out.push(line); return out;
 }
 
@@ -3925,7 +3970,7 @@ if (IS_TOUCH && innerHeight > innerWidth && !game.tut) setTimeout(() => toast('�
 // 測試用：同步跑 n 步
 function sim(n) { for (let i = 0; i < n; i++) { if (game.replay) afterReplay(); if (game.replayDelay > 0 && game.state === 'dead') { /* 讓倒數照跑 */ } step(); } }
 function spawnAt(x, y) { destroyGiraffe(); removePie(); game.g = buildGiraffe(x, y); game.state = 'run'; game.buffer = []; game.replay = null; game.replayDelay = 0; game.cam.x = x + 2; game.chase.x = x - TUNE.chaseGap; game.prevHeadHard = 1; }
-window.__game = { finish, nextReward, renderLog, renderSkins, renderAchievements, selectSkin, checkRHold, pressKey, releaseKey, setSkin: id => { skin = id; }, setHeadVis: v => { HEAD_VIS = v; }, render: () => render(), w2s: (x, y) => [sx(x), sy(y), ppm], game, keys, contacts, loadMode, spawn, spawnAt, TUNE, sim, LEVEL, stats, achieved, award, die, copyResult, draw: () => { updateCamera(1); render(); updateHud(); } };
+window.__game = { finish, nextReward, renderLog, renderSkins, renderAchievements, selectSkin, checkRHold, pressKey, releaseKey, setSkin: id => { skin = id; }, setHeadVis: v => { HEAD_VIS = v; }, render: () => render(), occ: () => ({ topOcc, mustOcc, tutKeyOcc }), w2s: (x, y) => [sx(x), sy(y), ppm], game, keys, contacts, loadMode, spawn, spawnAt, TUNE, sim, LEVEL, stats, achieved, award, die, copyResult, draw: () => { updateCamera(1); render(); updateHud(); } };
 })();
 
 </script>
