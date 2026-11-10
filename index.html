@@ -2419,7 +2419,7 @@ function drawTutScene() {
     ctx.fillStyle = '#404040'; roundRect(sx(r.x - 0.3), sy(r.y + 0.4), 0.6 * ppm, 0.8 * ppm, 4); ctx.fill();
     ctx.fillStyle = on || game.gateOpenAt || (game.vs && VS.me.st === 'ready') ? '#70E070' : '#E05050'; ctx.beginPath(); ctx.arc(sx(r.x), sy(r.y + 0.18), Math.max(3, 0.08 * ppm), 0, 7); ctx.fill();
     ctx.fillStyle = '#7F7F7F'; ctx.fillRect(sx(r.x - 0.18), sy(r.y - 0.05), 0.36 * ppm, 0.12 * ppm);
-    txt(game.vs ? '簽到機' : '門禁', sx(r.x - (game.vs ? 0.7 : 0.55)), sy(r.y - 0.1), fs(0.22), '#404040');
+    txt(game.vs ? '簽到機' : '門禁', sx(r.x - 0.3) - 5, sy(r.y - 0.1), fs(0.22), '#404040', 'right'); // v12：靠右對齊在機器左邊（「簽到機」三個字在小畫面會被機器蓋住）
     if (game.tut && game.tut.stage >= 3 && !game.gateOpenAt) tutKeyOcc.push({ x: sx(r.x - 1.0), y: sy(r.y + 0.6), w: 1.45 * ppm, h: 1.0 * ppm }); }
   // 公司入口：玻璃門（刷卡後往上收）
   { const gx = tu.gate, k = game.gateOpenAt ? clamp((game.t - game.gateOpenAt) / 0.5, 0, 1) : 0, lift = k * 6.6;
@@ -3735,10 +3735,11 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [ // v10 起（使用者要求）：一天一筆；同一天再發新版就把內容加進當天那筆、v 改成最新版本號（from 是當天第一版，頁面標題顯示「v1 ~ v最新」，看得出那天改了幾版；狀態列只顯示最新版本）。只寫玩家感覺得到的改變，不寫開發者事項和細部設定值
-  { v: '2026.11.10 - v1', items: [
+  { v: '2026.11.10 - v2', from: 1, items: [
     '新增「即時對戰（測試中）」分頁：跟同事同時跑，看得到對方、不會互撞',
     '在公司門口等，跳起來用頭碰簽到機就算準備好，人到齊倒數開門',
     '跑完有「今日加班排行」，看誰最早下班',
+    '即時對戰：修正手機上字被擋住、名字疊在一起的問題',
   ] },
   { v: '2026.11.09 - v11', from: 1, items: [
     '新增「新人訓練」：第一次玩先學基本動作（可跳過，按 0 重玩），開頭和結束都有大字提示',
@@ -4197,7 +4198,7 @@ setInterval(() => {
   vsCheckStart();
 }, 1000);
 function vsFinished() {
-  VS.me = Object.assign({}, VS.me, { st: 'done', t: Math.round(game.result.t * 100) / 100, f: game.falls + game.deaths });
+  VS.me = Object.assign({}, VS.me, { st: 'done', t: Math.round(game.result.t * 10) / 10, f: game.falls + game.deaths }); // 跟畫面顯示一樣只留一位小數（不然排行表和「你：」那行會差 0.1 秒）
   vsNoteResults(); vsPush();
 }
 // 每一幀：送姿勢、簽到、開門
@@ -4225,7 +4226,7 @@ function vsOpenGate() {
 }
 // 名字 → 顏色（每個人固定一種，鬼影名牌用）
 const vsColor = uid => ['#2F5597', '#C55A11', '#7030A0', '#00808C', '#B8860B', '#C00060'][[...uid].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7) % 6];
-function vsStIcon(p) { return p.a ? '💤' : p.st === 'ready' ? '✔' : p.st === 'run' ? '🏃' : p.st === 'done' ? '📋' : '…'; }
+function vsStIcon(p) { return p.a ? '💤' : p.st === 'ready' ? '✔' : p.st === 'run' ? '🏃' : p.st === 'done' ? '📋' : '⏳'; } // 等待中不用「…」（看起來像字被截掉）
 // 鬼影：先畫到另一張畫布，再整張半透明貼上（直接降透明度畫，線條重疊的地方會變深）
 const ghostCv = document.createElement('canvas');
 function vsDrawGhosts() {
@@ -4240,53 +4241,74 @@ function vsDrawGhosts() {
   for (const it of list) { skin = SKINS.some(s => s.id === it.p.s) ? it.p.s : 'none'; game.ropes = it.gh.ropes; try { drawGiraffe({ parts: it.parts, recorded: true }); } catch (e) { /* 別人的鬼影畫壞不影響遊戲 */ } }
   skin = sv.skin; game.ropes = sv.ropes; game.deathKind = sv.dk; game.previewing = sv.pv;
   ctx = main; ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 0.42; ctx.drawImage(ghostCv, 0, 0); ctx.restore();
-  const me = game.g ? game.g.torso.getPosition().x : 0, placed = [];
-  const free = (x, y, w) => { for (let k = 0; k < 8 && placed.some(q => x < q.x + q.w && x + w > q.x && y - 11 < q.y + 22 && y + 11 > q.y); k++) y -= 23; placed.push({ x, y: y - 11, w }); return y; }; // 名牌疊在一起就往上排
-  for (const it of list) {
-    const h = it.parts[it.parts.length - 1], hx = sx(h.x), col = vsColor(it.uid); let hy = sy(h.y) - 0.75 * ppm - 14;
-    const label = it.p.n + (game.vsHold || it.p.a || it.p.st === 'done' ? ' ' + vsStIcon(it.p) : '');
-    ctx.font = 'bold 12px ' + FONT; const w = ctx.measureText(label).width + 14;
-    if (hx < ROW_W + 4 || hx > W - 4) { // 畫面外：邊緣顯示方向和距離
-      if (game.state === 'finish' || game.vsHold) continue; // 看成績、在等候區時不用（等候區面板已經有每個人跑到哪）
-      const right = hx > W - 4, d = Math.round(Math.abs(it.parts[0].x - me)), t = (right ? '' : '◀ ') + it.p.n + ' ' + (right ? '領先' : '落後') + ' ' + d + ' m' + (right ? ' ▶' : '');
-      const tw = ctx.measureText(t).width + 14, x = right ? W - tw - 6 : ROW_W + 6, y = free(x, clamp(hy, HEAD_H + 40, H - 60), tw);
-      ctx.globalAlpha = 0.9; ctx.fillStyle = col; roundRect(x, y - 10, tw, 20, 10); ctx.fill(); ctx.globalAlpha = 1;
-      txt(t, x + tw / 2, y + 1, 'bold 12px ' + FONT, '#fff'); levelOcc.push({ x: x - 2, y: y - 12, w: tw + 4, h: 24 });
-      continue;
-    }
-    hy = free(hx - w / 2, hy, w);
-    ctx.globalAlpha = 0.85; ctx.fillStyle = col; roundRect(hx - w / 2, hy - 10, w, 20, 10); ctx.fill(); ctx.globalAlpha = 1;
-    txt(label, hx, hy + 1, 'bold 12px ' + FONT, '#fff');
-    levelOcc.push({ x: hx - w / 2 - 2, y: hy - 12, w: w + 4, h: 24 });
-  }
+  VS.tagList = game.vsHold ? null : list; // 等候區大家擠在門口，名牌會疊成一團（使用者回報跑版），面板已經列出每個人 → 開跑後才掛名牌。名牌最後才畫（vsDrawTags），才不會被自己的長頸鹿、重心條蓋住
 }
 // 等候區的場景：門上的公告、簽到機的提示（drawTutScene 裡畫）
 function vsDrawScene() {
   const r = LEVEL.tut.reader, gx = LEVEL.tut.gate, fs = n => 'bold ' + Math.round(clamp(ppm * n, 11, 34)) + 'px ' + FONT;
   if (!game.gateOpenAt) { // 門後的公告（玻璃門看得到）
-    const x1 = gx + 0.35, x2 = gx + 3.2, y1 = 2.6, y2 = 4.3;
-    ctx.fillStyle = '#FFF2CC'; ctx.strokeStyle = '#BF9000'; ctx.lineWidth = 2; roundRect(sx(x1), sy(y2), (x2 - x1) * ppm, (y2 - y1) * ppm, 6); ctx.fill(); ctx.stroke();
-    txt('上班時間未到', sx((x1 + x2) / 2), sy(y2 - 0.55), fs(0.32), '#7F6000'); txt('人到齊才開門', sx((x1 + x2) / 2), sy(y1 + 0.5), fs(0.24), '#7F6000');
-    levelOcc.push({ x: sx(x1) - 4, y: sy(y2) - 4, w: (x2 - x1) * ppm + 8, h: (y2 - y1) * ppm + 8 });
+    // 框的大小跟著字：畫面小時字有最小字級，框不能比字小（使用者手機橫式：字超出框、壓到玻璃門）
+    const f1 = 'bold ' + Math.round(clamp(ppm * 0.32, 11, 34)) + 'px ' + FONT, f2 = 'bold ' + Math.round(clamp(ppm * 0.24, 10, 26)) + 'px ' + FONT;
+    const s1 = parseInt(f1.slice(5), 10), s2 = parseInt(f2.slice(5), 10);
+    ctx.font = f1; const w1 = ctx.measureText('上班時間未到').width; ctx.font = f2; const w2 = ctx.measureText('人到齊才開門').width;
+    const bw = Math.max(2.85 * ppm, Math.max(w1, w2) + 16), bh = Math.max(1.7 * ppm, s1 + s2 + 20), bx = sx(gx + 0.12) + 8, by = sy(2.6) - bh;
+    ctx.fillStyle = '#FFF2CC'; ctx.strokeStyle = '#BF9000'; ctx.lineWidth = 2; roundRect(bx, by, bw, bh, 6); ctx.fill(); ctx.stroke();
+    txt('上班時間未到', bx + bw / 2, by + bh / 2 - s2 / 2 - 2, f1, '#7F6000'); txt('人到齊才開門', bx + bw / 2, by + bh / 2 + s1 / 2 + 2, f2, '#7F6000');
+    levelOcc.push({ x: bx - 4, y: by - 4, w: bw + 8, h: bh + 8 });
   }
-  if (game.vsHold && VS.me.st !== 'ready') { // 簽到機上方的提示（簽到後改成頭上掛「✔ 簽到」，這裡不再重複）
-    const done = false, t = '↓ 跳起來用頭碰', y = sy(r.y + 0.75), f = fs(0.24);
-    ctx.font = f; const w = ctx.measureText(t).width + 16, hh = Math.max(20, ppm * 0.42);
+  if (game.vsHold && VS.me.st === 'wait') { // 簽到機上方的提示（倒數中不用）（簽到後改成頭上掛「✔ 簽到」，這裡不再重複）
+    const done = false, t = '↓ 跳起來用頭碰', f = fs(0.24);
+    ctx.font = f; const w = ctx.measureText(t).width + 16, hh = Math.max(20, ppm * 0.42), y = Math.max(sy(r.y + 0.75), HEAD_H + hh / 2 + 3); // 畫面矮的時候不要跑到欄名列底下
     ctx.fillStyle = done ? '#217346' : '#C55A11'; roundRect(sx(r.x) - w / 2, y - hh / 2, w, hh, 6); ctx.fill();
     txt(t, sx(r.x), y + 1, f, '#fff');
     const occ = [{ x: sx(r.x) - w / 2 - 4, y: y - hh / 2 - 4, w: w + 8, h: hh + 8 }, { x: sx(r.x - 0.4), y: sy(r.y + 0.45), w: 0.8 * ppm, h: 0.9 * ppm }];
     levelOcc.push(...occ); mustOcc.push(...occ); // 主播註解絕對不能蓋住簽到機
   }
 }
+function vsDrawTags() {
+  const list = VS.tagList || []; VS.tagList = null; if (!list.length) return;
+  const me = game.g ? game.g.torso.getPosition().x : 0, placed = occupied.filter(o => o.h < 200).map(o => ({ ...o })); // 先放場景裡的東西（簽到機、提示、按鍵）：名牌不要蓋到
+  const mt = vsMyTag(); if (mt) placed.push(mt); // 自己頭上的「✔ 簽到」
+  const free = (x, y, w) => { // 名牌疊在一起 / 蓋到場景提示：上下找空位（不超出畫面）
+    const hit = yy => placed.some(q => x < q.x + q.w && x + w > q.x && yy - 11 < q.y + q.h && yy + 11 > q.y);
+    let best = null; for (const d of [0, -23, 23, -46, 46, -69, 69, -92, 92, -115, 115, -138, 138]) { const yy = y + d; if (yy - 11 < HEAD_H + 2 || yy + 11 > H - 2) continue; if (!hit(yy)) { best = yy; break; } }
+    if (best != null) placed.push({ x, y: best - 11, w, h: 22 }); return best; // 找不到空位就先不畫（不要蓋到提示牌）
+  };
+  for (const it of list) {
+    const h = it.parts[it.parts.length - 1], hx = sx(h.x), col = vsColor(it.uid); let hy = sy(h.y) - 0.75 * ppm - 14;
+    const label = it.p.n + (it.p.a || it.p.st === 'done' || (game.vsHold && it.p.st === 'ready') ? ' ' + vsStIcon(it.p) : ''); // 名牌只標 ✔ / 💤 / 📋，等待中不標
+    ctx.font = 'bold 12px ' + FONT; const w = ctx.measureText(label).width + 14;
+    if (hx < ROW_W + 4 || hx > W - 4) { // 畫面外：邊緣顯示方向和距離
+      if (game.state === 'finish' || game.vsHold) continue; // 看成績、在等候區時不用（等候區面板已經有每個人跑到哪）
+      const right = hx > W - 4, d = Math.round(Math.abs(it.parts[0].x - me)), t = (right ? '' : '◀ ') + it.p.n + ' ' + (right ? '領先' : '落後') + ' ' + d + ' m' + (right ? ' ▶' : '');
+      const tw = ctx.measureText(t).width + 14, x = right ? W - tw - 6 : ROW_W + 6, y = free(x, clamp(hy, HEAD_H + 40, H - 60), tw); if (y == null) continue;
+      ctx.globalAlpha = 0.9; ctx.fillStyle = col; roundRect(x, y - 10, tw, 20, 10); ctx.fill(); ctx.globalAlpha = 1;
+      txt(t, x + tw / 2, y + 1, 'bold 12px ' + FONT, '#fff'); occupied.push({ x: x - 2, y: y - 12, w: tw + 4, h: 24 });
+      continue;
+    }
+    hy = free(hx - w / 2, hy, w); if (hy == null) continue;
+    ctx.globalAlpha = 0.85; ctx.fillStyle = col; roundRect(hx - w / 2, hy - 10, w, 20, 10); ctx.fill(); ctx.globalAlpha = 1;
+    txt(label, hx, hy + 1, 'bold 12px ' + FONT, '#fff');
+    occupied.push({ x: hx - w / 2 - 2, y: hy - 12, w: w + 4, h: 24 });
+  }
+}
+function vsMyTag() { // 自己頭上「✔ 簽到」的位置（別人的名牌要讓開）
+  if (!game.vsHold || VS.me.st !== 'ready' || !game.g) return null;
+  const h = game.g.head.getPosition(), x = sx(h.x), y = Math.max(sy(h.y) - 0.75 * ppm - 14, HEAD_H + 14);
+  return { x: x - 28, y: y - 14, w: 56, h: 28 };
+}
 // 等候區面板 / 比賽中的「業績進度」、自己頭上的 ✔
 function vsDrawHud() {
-  if (game.state === 'finish') return;
-  const ps = VS.players, me = VS.uid;
-  if (game.vsHold && VS.me.st === 'ready' && game.g) { // 自己頭上的 ✔
-    const h = game.g.head.getPosition(), x = sx(h.x), y = sy(h.y) - 0.75 * ppm - 14;
-    ctx.fillStyle = '#217346'; roundRect(x - 24, y - 10, 48, 20, 10); ctx.fill(); txt('✔ 簽到', x, y + 1, 'bold 12px ' + FONT, '#fff');
-    occupied.push({ x: x - 28, y: y - 14, w: 56, h: 28 });
+  if (game.state === 'finish') { VS.tagList = null; return; } // 看成績時不畫名牌
+  vsDrawPanels(); // 面板先畫（位置不跟著會動的名牌跳來跳去），名牌再讓開面板
+  const mt = vsMyTag(); if (mt) { // 自己頭上的 ✔
+    ctx.fillStyle = '#217346'; roundRect(mt.x + 4, mt.y + 4, 48, 20, 10); ctx.fill(); txt('✔ 簽到', mt.x + 28, mt.y + 15, 'bold 12px ' + FONT, '#fff');
+    occupied.push(mt);
   }
+  vsDrawTags();
+}
+function vsDrawPanels() {
+  const ps = VS.players, me = VS.uid;
   if (game.vsHold) return vsDrawLobby();
   if (!VS.raceId || VS.st !== 'ok') return;
   // 比賽中：左上角「業績進度」（跑完的照時間、還在跑的照距離）
@@ -4297,7 +4319,12 @@ function vsDrawHud() {
     return { u, n: VS.names[u], k: 2, v: 0, s: '離開了', mine };
   }).sort((a, b) => a.k - b.k || a.v - b.v);
   if (rows.length < 2) return; // 一個人跑就不用排名
-  const f = '12px ' + FONT, fb = 'bold 12px ' + FONT, rh = 17, show = rows.slice(0, 6); ctx.font = fb; const w = Math.min(W - ROW_W - 20, Math.max(150, 24 + Math.max(...show.map(r => ctx.measureText(r.n).width)) + 12 + Math.max(...show.map(r => ctx.measureText(r.s).width)) + 8)), /* 寬度照名字長度，不截成「…」 */ x = ROW_W + 6, y = HEAD_H + 6, h = 20 + show.length * rh + (rows.length > 6 ? rh : 0);
+  const f = '12px ' + FONT, fb = 'bold 12px ' + FONT, rh = 17, show = rows.slice(0, 6); ctx.font = fb; const w = Math.min(W - ROW_W - 20, Math.max(150, 24 + Math.max(...show.map(r => ctx.measureText(r.n).width)) + 12 + Math.max(...show.map(r => ctx.measureText(r.s).width)) + 8)), /* 寬度照名字長度，不截成「…」 */ h = 20 + show.length * rh + (rows.length > 6 ? rh : 0);
+  // 位置：左上 → 右上 → 老闆 / 主管彈窗、陣亡提示、重播橫條的下面；都會蓋到就先不顯示（那些比較重要）
+  const ys = [HEAD_H + 6, ...topOcc.map(o => o.y + o.h + 4)], xs = [ROW_W + 6, W - w - 8];
+  let x = null, y = null;
+  for (const yy of ys) { for (const xx of xs) { if (yy + h > H - 4) continue; if (!topOcc.some(o => xx < o.x + o.w && xx + w > o.x && yy < o.y + o.h && yy + h > o.y)) { x = xx; y = yy; break; } } if (x != null) break; }
+  if (x == null) return;
   ctx.fillStyle = 'rgba(255,255,255,.92)'; ctx.fillRect(x, y, w, h); ctx.strokeStyle = C.green; ctx.lineWidth = 1.5; ctx.strokeRect(x + 0.5, y + 0.5, w, h);
   ctx.fillStyle = C.green; ctx.fillRect(x, y, w, 18); txt('業績進度', x + 8, y + 9.5, fb, '#fff', 'left');
   show.forEach((r, i) => {
@@ -4310,42 +4337,61 @@ function vsDrawHud() {
 }
 function vsDrawLobby() {
   const ps = VS.players, me = VS.uid, uids = Object.keys(ps).sort((a, b) => (b === me) - (a === me) || (ps[a].at || 0) - (ps[b].at || 0));
-  const lines = [];
   const title = '即時對戰（測試中）・等候區';
-  let msg, msgC = '#7F6000';
+  let msg, sub = '', msgC = '#7F6000';
   if (VS.st === 'err') { msg = '連不上伺服器（' + VS.err + '），點分頁「即時對戰」重試'; msgC = '#C00000'; }
   else if (VS.st !== 'ok') msg = !VS.name ? '先輸入暱稱' : '連線中…';
   else if (VS.startLocal) msg = '人到齊了！準備開門';
   else {
     const others = uids.filter(u => u !== me && !ps[u].a), running = others.filter(u => ps[u].st === 'run' || ps[u].st === 'done'), notReady = others.filter(u => ps[u].st !== 'ready');
-    if (VS.me.st !== 'ready') msg = '跳起來用頭碰「簽到機」＝準備好了' + (others.length ? '' : '（一個人也能先跑）');
+    if (VS.me.st !== 'ready') { msg = '跳起來用頭碰「簽到機」＝準備好了'; if (!others.length) sub = '一個人也能先跑'; }
     else if (running.length && running.length === notReady.length) msg = '還有 ' + running.length + ' 人在跑 / 看成績，等他們回來';
     else if (notReady.length) msg = '還在等 ' + notReady.length + ' 個人（' + VS_EXCUSE[Math.floor(game.t / 4) % VS_EXCUSE.length] + '）';
     else msg = '人到齊了！';
   }
-  const chips = VS.st === 'ok' ? uids.map(u => { const p = ps[u]; return vsStIcon(p) + ' ' + p.n + (u === me ? '（你）' : '') + (p.st === 'run' && !p.a ? ' ' + Math.max(0, Math.round(p.x || 0)) + 'm' : ''); }).join('　') : '';
+  const chips = VS.st === 'ok' ? uids.map(u => { const p = ps[u]; return vsStIcon(p) + ' ' + p.n + (u === me ? '（你）' : '') + (p.st === 'run' && !p.a ? ' ' + Math.max(0, Math.round(p.x || 0)) + 'm' : ''); }) : [];
+  const wrapChips = (maxW2, font) => { ctx.font = font; const out = []; let cur = ''; for (const c of chips) { const t = cur ? cur + '　' + c : c; if (cur && ctx.measureText(t).width > maxW2) { out.push(cur); cur = c; } else cur = t; } if (cur) out.push(cur); return out; }; // 一個人一個人換行，名字不會被拆成兩半
   const maxW = Math.min(W - ROW_W - 16, 560), ft = 'bold 14px ' + FONT, fc = '13px ' + FONT, fm = 'bold 15px ' + FONT;
-  const cl = chips ? wrapText(chips, maxW - 24, fc) : [], ml = wrapText(msg, maxW - 24, fm);
-  ctx.font = ft; let w = ctx.measureText(title).width; ctx.font = fc; cl.forEach(l => { w = Math.max(w, ctx.measureText(l).width); }); ctx.font = fm; ml.forEach(l => { w = Math.max(w, ctx.measureText(l).width); });
-  w = Math.min(maxW, w + 24); const h = 26 + cl.length * 18 + ml.length * 20 + 10;
-  // 位置：上方置中 → 地面下方 → 左上；不要蓋到簽到機、自己的頭、手機按鍵（蓋到頭 0.6 秒以上才換位置，不會一直閃）
+  // 兩種版面：完整（列出每個人）／精簡（標題寫人數、只留一句提示；畫面矮放不下時用）
+  const nReady = uids.filter(u => ps[u].st === 'ready').length;
+  const layout = compact => {
+    const tt = compact && VS.st === 'ok' ? '即時對戰・等候區（' + uids.length + ' 人，✔ ' + nReady + '）' : title;
+    const cl = !compact && chips.length ? wrapChips(maxW - 24, fc) : [], ml = wrapBal(msg, maxW - 24, fm), sl = !compact && sub ? wrapBal(sub, maxW - 24, fc) : []; // 平均折行、標點不放行首
+    ctx.font = ft; let w = ctx.measureText(tt).width; ctx.font = fc; cl.concat(sl).forEach(l => { w = Math.max(w, ctx.measureText(l).width); }); ctx.font = fm; ml.forEach(l => { w = Math.max(w, ctx.measureText(l).width); });
+    w = Math.min(maxW, w + 24); return { tt, cl, ml, sl, w, h: 26 + cl.length * 18 + ml.length * 20 + sl.length * 18 + 10 };
+  };
+  // 位置：上方置中 → 地面下方 → 左上 → 右上 → 往下挪；不要蓋到簽到機、自己的身體、手機按鍵、通知，也不能超出畫面（蓋到頭 0.6 秒以上才換位置，不會一直閃）
   const r = LEVEL.tut.reader, block = [{ x: sx(r.x - 1.0), y: sy(r.y + 1.1), w: 2.0 * ppm, h: 1.8 * ppm }, ...occupied.filter(o => o.h < 200)]; // occupied：場景裡的東西、手機按鍵、通知
+  if (game.g) { // 自己的身體和腳（頭另外算：跳起來頭會甩高，蓋到一下下不用馬上換位置）
+    const bp = game.g.parts.slice(0, 5).map(b => b.getPosition()), xs = bp.map(p => sx(p.x)), ys = bp.map(p => sy(p.y)), m = 0.5 * ppm;
+    block.push({ x: Math.min(...xs) - m - 0.4 * ppm, y: Math.min(...ys) - m, w: Math.max(...xs) - Math.min(...xs) + 2 * m + 0.8 * ppm, h: Math.max(...ys) - Math.min(...ys) + 2 * m + 0.3 * ppm });
+  }
+  { const rb = document.getElementById('tReset'), q = rb && rb.getBoundingClientRect(), cr = cv.getBoundingClientRect(); if (q && q.width) block.push({ x: (q.left - cr.left) / uiK - 4, y: (q.top - cr.top) / uiK - 4, w: q.width / uiK + 8, h: q.height / uiK + 8 }); }
   const hp = game.g ? game.g.head.getPosition() : null, head = hp ? { x: sx(hp.x) - 0.6 * ppm, y: sy(hp.y) - 0.9 * ppm, w: 1.2 * ppm, h: 1.4 * ppm } : null;
-  const cx = ROW_W + (W - ROW_W - w) / 2, gy = sy(0) + 10, cands = [{ x: cx, y: HEAD_H + 8 }, { x: cx, y: gy + h < H - 4 ? gy : H - h - 4 }, { x: ROW_W + 8, y: HEAD_H + 8 }, { x: W - w - 8, y: HEAD_H + 8 }];
-  for (let k = 1; k <= 8; k++) cands.push({ x: cx, y: HEAD_H + 8 + k * 24 }); // 上方被通知擋住：往下挪
-  const hit = (c, o) => o && c.x < o.x + o.w && c.x + w > o.x && c.y < o.y + o.h && c.y + h > o.y;
-  const bad = c => block.some(o => hit(c, o)), onHead = c => hit(c, head);
-  const P = VS.panel || (VS.panel = { i: 0, headT: 0 });
-  let c = cands[P.i] || cands[0];
-  P.headT = onHead(c) ? P.headT + 1 / 60 : 0;
-  if (bad(c) || P.headT > 0.6) { const j = cands.findIndex(q => !bad(q) && !onHead(q)); if (j >= 0 && j !== P.i) { P.i = j; P.headT = 0; c = cands[j]; } }
-  if (P.i !== 0 && !bad(cands[0]) && !onHead(cands[0])) { P.back = (P.back || 0) + 1 / 60; if (P.back > 1.2) { P.i = 0; P.back = 0; c = cands[0]; } } else P.back = 0;
+  const candsOf = L => { const cx = ROW_W + (W - ROW_W - L.w) / 2, gy = sy(0) + 10, cs = [{ x: cx, y: HEAD_H + 8 }, { x: cx, y: gy + L.h < H - 4 ? gy : H - L.h - 4 }, { x: ROW_W + 8, y: HEAD_H + 8 }, { x: W - L.w - 8, y: HEAD_H + 8 }];
+    for (let k = 1; k <= 8; k++) cs.push({ x: cx, y: HEAD_H + 8 + k * 24 }); return cs; };
+  const hit = (c, L, o) => o && c.x < o.x + o.w && c.x + L.w > o.x && c.y < o.y + o.h && c.y + L.h > o.y;
+  const bad = (c, L) => c.y < HEAD_H + 2 || c.y + L.h > H - 2 || block.some(o => hit(c, L, o)), onHead = (c, L) => hit(c, L, head);
+  const P = VS.panel || (VS.panel = { i: 0, headT: 0, compact: false, cAt: -9 });
+  if (P.compact && game.t - P.cAt > 2) { const F = layout(false); if (candsOf(F).some(q => !bad(q, F) && !onHead(q, F))) { P.compact = false; P.i = 0; } } // 精簡版用了 2 秒後，完整版放得下就換回來
+  let L = layout(P.compact), cands = candsOf(L), c = cands[P.i] || cands[0];
+  P.headT = onHead(c, L) ? P.headT + 1 / 60 : 0;
+  if (bad(c, L) || P.headT > 0.6) {
+    let j = cands.findIndex(q => !bad(q, L) && !onHead(q, L));
+    if (j < 0) j = cands.findIndex(q => !bad(q, L)); // 頭到處甩：至少別蓋到其他東西
+    if (j < 0 && !P.compact) { P.compact = true; P.cAt = game.t; L = layout(true); cands = candsOf(L); j = cands.findIndex(q => !bad(q, L) && !onHead(q, L)); if (j < 0) j = cands.findIndex(q => !bad(q, L)); }
+    if (j >= 0) { P.i = j; P.headT = 0; } c = cands[P.i] || cands[0];
+  }
+  if (P.i !== 0 && !bad(cands[0], L) && !onHead(cands[0], L)) { P.back = (P.back || 0) + 1 / 60; if (P.back > 1.2) { P.i = 0; P.back = 0; c = cands[0]; } } else P.back = 0;
+  c = { x: c.x, y: clamp(c.y, HEAD_H + 2, H - L.h - 2) }; // 真的沒地方放：至少不要超出畫面
+  const w = L.w, h = L.h;
   ctx.fillStyle = 'rgba(255,255,255,.95)'; ctx.strokeStyle = '#2F5597'; ctx.lineWidth = 2; roundRect(c.x, c.y, w, h, 8); ctx.fill(); ctx.stroke();
   ctx.fillStyle = '#2F5597'; roundRect(c.x, c.y, w, 22, 8); ctx.fill(); ctx.fillRect(c.x, c.y + 12, w, 10);
-  txt(title, c.x + w / 2, c.y + 11.5, ft, '#fff');
+  txt(L.tt, c.x + w / 2, c.y + 11.5, ft, '#fff');
   let y = c.y + 26;
-  cl.forEach(l => { txt(l, c.x + w / 2, y + 9, fc, '#333'); y += 18; });
-  ml.forEach(l => { txt(l, c.x + w / 2, y + 10, fm, msgC); y += 20; });
+  L.cl.forEach(l => { txt(l, c.x + w / 2, y + 9, fc, '#333'); y += 18; });
+  L.ml.forEach(l => { txt(l, c.x + w / 2, y + 10, fm, msgC); y += 20; });
+  L.sl.forEach(l => { txt(l, c.x + w / 2, y + 9, fc, '#7F7F7F'); y += 18; });
   occupied.push({ x: c.x - 4, y: c.y - 4, w: w + 8, h: h + 8 }); topOcc.push(occupied[occupied.length - 1]);
 }
 // 倒數 3、2、1 →「開門！」
