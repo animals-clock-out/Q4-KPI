@@ -605,7 +605,7 @@ const game = {
 const keys = {};
 // v12 即時對戰（測試中）的連線狀態；程式在檔案後面「即時對戰」段落
 const VS_LOBBY_X = -7.5; // 等候區：公司大門（-3）前面
-const VS = { st: 'off', err: '', uid: null, db: null, off: 0, online: false, name: '', me: { st: 'wait' }, players: {}, ghosts: {}, race: null, raceId: null, names: {}, res: {}, startLocal: 0, openAt: -9, lastKey: performance.now(), afk: false, sendAt: 0, pushAt: 0, readyAt: -9, panel: null };
+const VS = { pen: 0, resAt: {}, st: 'off', err: '', uid: null, db: null, off: 0, online: false, name: '', me: { st: 'wait' }, players: {}, ghosts: {}, race: null, raceId: null, names: {}, res: {}, startLocal: 0, openAt: -9, lastKey: performance.now(), afk: false, sendAt: 0, pushAt: 0, readyAt: -9, panel: null };
 try { VS.name = localStorage.getItem('giraffe_vsname') || ''; } catch (e) { /* 私密模式 */ }
 const contacts = { head: new Map(), legs: [0, 0, 0, 0], headArch: 0, headHard: 0, hurdleHit: null, pieHit: false };
 const pendingEvents = [];
@@ -1334,7 +1334,7 @@ function rules() {
   // 欄杆
   for (const h of game.hurdles) {
     const ang = h.body.getAngle();
-    if (!h.knocked && Math.abs(ang) > 0.5) { h.knocked = true; if (game.started && game.state !== 'finish') game.time += 2; say('knock', 2.6); }
+    if (!h.knocked && Math.abs(ang) > 0.5) { h.knocked = true; if (game.started && game.state !== 'finish') { game.time += 2; if (game.vs) VS.pen += 2; } say('knock', 2.6); }
     if (!h.cleared && !h.knocked && p.x > h.x + 1.2 && game.state === 'run') { h.cleared = true; say('clean', 2.2); }
   }
   for (const l of game.livebars) { if (p.x < l.x - 3) l.tripped = false; }
@@ -1465,7 +1465,7 @@ function rules() {
     if (game.downTime > 3.5 && !game.downHinted) { game.downHinted = true; say('down', 3.4, 1); }
   }
   // 死亡重播倒數
-  if (game.replayDelay > 0) { game.replayDelay -= DT; if (game.replayDelay <= 0) startReplay(); }
+  if (game.replayDelay > 0) { game.replayDelay -= DT; if (game.replayDelay <= 0) { if (game.vs) { commitHighlight(); afterReplay(); } else startReplay(); } } // 即時對戰不播慢動作重播
   // 精華片段：事件發生後再多錄一點點後續
   if (game.hlPending && game.t >= game.hlPending.at) commitHighlight();
 }
@@ -1616,6 +1616,7 @@ function drawTutPanel() {
   // hard = 蓋到這段要用的東西 / 手機按鍵（馬上換位置）；soft = 蓋到頭；softBig = 頭附近再留空間（判斷能不能搬回去用）
   const hdBig = hd && { x: hd.x - 0.5 * ppm, y: hd.y - 1.0 * ppm, w: hd.w + ppm, h: hd.h + 2.0 * ppm };
   const big = (o, m) => ({ x: o.x - m, y: o.y - m, w: o.w + m * 2, h: o.h + m * 2 }), objA = objs.reduce((a, o) => a + o.w * o.h, 0) + 1;
+  if (!cands.length) return; // 畫面還沒有大小（分頁剛切回來、轉方向的瞬間）：這一幀先不畫，不然下面會出錯
   for (const c of cands) { const r = { x: c.cx - c.pw / 2 - 4, y: c.y - 4, w: c.pw + 8, h: c.ph + 8 }; c.hard = objs.reduce((a, o) => a + ov(r, o), 0) + pads.reduce((a, o) => a + ov(r, o), 0); c.hardBig = objs.concat(pads).reduce((a, o) => a + ov(r, big(o, 16)), 0); c.soft = hd ? ov(r, hd) : 0; c.softBig = hdBig ? ov(r, hdBig) : 0; }
   // v8.9 後續（使用者手機橫式：站著不動，脖子自然晃，說明框在上方置中和右邊之間一直跳來跳去）：換位置要穩
   //   - 蓋到要用的東西 / 按鍵 → 馬上換（剛換過 0.6 秒內只擦到邊不算）；只蓋到頭 → 連續蓋住 0.4 秒才換，剛換過 1.2 秒內也不換（頭晃一下就過去了）
@@ -1797,7 +1798,7 @@ function die(kind) {
   if (kind === 'boss') { game.boss.phase = 'caught'; game.boss.t = 0; game.boss.line = pick(game.boss.mode === 'seat' ? SUP_CAUGHT : BOSS_CAUGHT); }
   const tipText = kind === 'boss' && game.boss.mode === 'seat' ? `走到螢幕前停好，頭放進圈圈裡（可以用${K.up}／${K.down}調整）` : DEATH_TIP[kind];
   game.tip = tipText ? { text: tipText, why: kind === 'boss' ? game.boss.why : '', until: Infinity } : null;
-  game.replayDelay = kind === 'boss' ? 2.8 : kind === 'chase' ? 0.9 : 0.6; // v3：被老闆抓的畫面很好笑，多停一下
+  game.replayDelay = game.vs ? 1.0 : kind === 'boss' ? 2.8 : kind === 'chase' ? 0.9 : 0.6; // v3：被老闆抓的畫面很好笑，多停一下；v12 即時對戰：停 1 秒就回存檔點（使用者選 A：別人一直在跑，重播太吃虧）
 }
 // 把待存的精華片段定案（在錄影緩衝被清掉之前）
 function commitHighlight() {
@@ -1940,6 +1941,7 @@ function step() {
   game.world.step(DT, 10, 4);
   scanContacts();
   if (game.started && game.state !== 'finish' && game.state !== 'dead') game.time += DT;
+  if (game.vs && game.started && game.state !== 'finish' && VS.startLocal) game.time = Math.max(0, (Date.now() - VS.startLocal) / 1000) + VS.pen; // v12 即時對戰（使用者：要有真的在追對手的感覺）：計時跟著真實時間走，陣亡、切到別的 App 都照算，排名 = 畫面上誰先到
   rules();
   if (game.g) record();
   // v7：站穩不動時記下姿勢，給造型預覽、新造型彈窗用
@@ -3735,11 +3737,13 @@ function renderAchievements() {
 
 // 更新紀錄工作表（按 5）。新版本加在最上面；版號格式「YYYY.MM.DD - vN」
 const VERSIONS = [ // v10 起（使用者要求）：一天一筆；同一天再發新版就把內容加進當天那筆、v 改成最新版本號（from 是當天第一版，頁面標題顯示「v1 ~ v最新」，看得出那天改了幾版；狀態列只顯示最新版本）。只寫玩家感覺得到的改變，不寫開發者事項和細部設定值
-  { v: '2026.11.10 - v2', from: 1, items: [
+  { v: '2026.11.10 - v3', from: 1, items: [
     '新增「即時對戰（測試中）」分頁：跟同事同時跑，看得到對方、不會互撞',
     '在公司門口等，跳起來用頭碰簽到機就算準備好，人到齊倒數開門',
     '跑完有「今日加班排行」，看誰最早下班',
-    '即時對戰：修正手機上字被擋住、名字疊在一起的問題',
+    '即時對戰：陣亡馬上復活，計時跟著真實時間走，畫面上先到的人先下班',
+    '即時對戰：排行表會即時更新，最後才揭曉獎金、重新排名',
+    '即時對戰：修正看不到對方成績、手機上字被擋住的問題',
   ] },
   { v: '2026.11.09 - v11', from: 1, items: [
     '新增「新人訓練」：第一次玩先學基本動作（可跳過，按 0 重玩），開頭和結束都有大字提示',
@@ -4109,11 +4113,11 @@ async function vsConnect() {
 function vsPush() {
   if (VS.st !== 'ok' || !game.vs || !VS.uid) return;
   const m = VS.me, d = { n: (VS.name || '無名氏').slice(0, 12), s: String(skin).slice(0, 24), st: m.st, a: !!VS.afk, at: firebase.database.ServerValue.TIMESTAMP };
-  if (m.r) d.r = m.r; if (m.t != null) d.t = m.t; if (m.f != null) d.f = m.f;
+  if (m.r) d.r = m.r; if (m.t != null) d.t = m.t; if (m.f != null) d.f = m.f; if (m.b != null && !VS.noB) d.b = m.b; // t = 實際到達時間（真實時間）、b = 獎金秒數（完賽表才扣）
   if (game.g) d.x = Math.round(game.g.torso.getPosition().x * 10) / 10;
   const ref = VS.db.ref('vs/p/' + VS.uid);
   ref.onDisconnect().remove(); VS.db.ref('vs/q/' + VS.uid).onDisconnect().remove(); // 關分頁 / 斷線：自動移出等候區
-  ref.set(d).catch(vsFail);
+  ref.set(d).catch(e => { if (d.b != null && /permission|PERMISSION/.test((e && (e.code || e.message)) || '')) { VS.noB = true; delete d.b; ref.set(d).catch(vsFail); } else vsFail(e); }); // 安全規則還沒加 b 欄位：先不送獎金，照樣能玩
   VS.pushAt = performance.now();
 }
 function vsSetSt(st, extra) { VS.me = Object.assign({}, VS.me, { st }, extra || {}); vsPush(); }
@@ -4161,20 +4165,25 @@ function vsGhostParts(gh) {
 // 這一場開始了：我是參賽者 → 倒數、同一套隨機（員工編號、老闆位置）
 function vsGotRace(r) {
   VS.race = r;
+  if (r && game.vs && r.ids && r.ids[VS.uid] && VS.raceId && VS.raceId !== r.id && VS.me.st === 'run' && Math.abs(r.at - VS.startAt) < 15000) { // 同一批人的另一個場次編號（保險）：改跟伺服器上的這場
+    VS.raceId = r.id; VS.startAt = r.at; for (const u in r.ids) if (!VS.names[u]) VS.names[u] = (VS.players[u] && VS.players[u].n) || '？';
+    if (game.vsHold) { VS.startLocal = r.at - VS.off; game.vsSeed = r.seed; const un = seedRandom(r.seed + 7); game.boss.plan = bossPlan(); un(); buildProps(); }
+    vsSetSt('run', { r: r.id }); return;
+  }
   if (!r || !game.vs || !r.ids || !r.ids[VS.uid] || VS.raceId === r.id || VS.me.st !== 'ready' || r.at < vsNow() - 8000) return;
-  VS.raceId = r.id; VS.startLocal = r.at - VS.off; VS.res = {};
+  VS.raceId = r.id; VS.startAt = r.at; VS.startLocal = r.at - VS.off; VS.res = {}; VS.resAt = {}; VS.pen = 0;
   VS.names = {}; for (const u in r.ids) VS.names[u] = (VS.players[u] && VS.players[u].n) || '？';
   game.vsSeed = r.seed;
   const un = seedRandom(r.seed + 7); game.boss.plan = bossPlan(); un();
   buildProps();
-  vsSetSt('run', { r: r.id, t: null, f: null });
+  vsSetSt('run', { r: r.id, t: null, f: null, b: null });
   talk([['主播', '人到齊了！準備開門'], ['賽評', '這次一定要準時下班']], 3.2, 2);
 }
 // 記下這一場每個人的成績（他們回門口後狀態會清掉）
 function vsNoteResults() {
   if (!VS.raceId) return;
-  for (const u in VS.players) { const p = VS.players[u]; if (p.r === VS.raceId && p.st === 'done' && p.t != null) VS.res[u] = { t: p.t, f: p.f || 0 }; }
-  if (VS.me.st === 'done' && VS.me.t != null) VS.res[VS.uid] = { t: VS.me.t, f: VS.me.f || 0 };
+  for (const u in VS.players) { const p = VS.players[u]; if (p.r === VS.raceId && p.st === 'done' && p.t != null) { if (!VS.res[u]) VS.resAt[u] = game.t; VS.res[u] = { t: p.t, b: p.b || 0, f: p.f || 0 }; } }
+  if (VS.me.st === 'done' && VS.me.t != null) VS.res[VS.uid] = { t: VS.me.t, b: VS.me.b || 0, f: VS.me.f || 0 };
 }
 // 我 Ready 了：全員（沒掛機的）都 Ready 就開一場（交易：兩個人同時按也只會開一場）
 function vsCheckStart() {
@@ -4188,7 +4197,7 @@ function vsCheckStart() {
     if (cur && cur.at > now - 10000) return; // 別人剛開了一場
     const m = {}; ready.forEach(u => { m[u] = true; });
     return { id: 'r' + now.toString(36), seed: Math.floor(Math.random() * 1e9), at: now + VS_COUNT * 1000, ids: m };
-  }).catch(vsFail);
+  }, null, false).catch(vsFail); // false：伺服器確認後才通知（2026-11-10 使用者回報：兩人同時簽到，兩台各自先看到自己寫的場次，結果記到不同場，排行對不上）
 }
 // 每秒：掛機判定（Ready 的人在等別人，不算掛機）、檢查能不能開門
 setInterval(() => {
@@ -4198,7 +4207,7 @@ setInterval(() => {
   vsCheckStart();
 }, 1000);
 function vsFinished() {
-  VS.me = Object.assign({}, VS.me, { st: 'done', t: Math.round(game.result.t * 10) / 10, f: game.falls + game.deaths }); // 跟畫面顯示一樣只留一位小數（不然排行表和「你：」那行會差 0.1 秒）
+  VS.me = Object.assign({}, VS.me, { st: 'done', t: Math.round(game.result.raw * 10) / 10, b: game.result.bonus || 0, f: game.falls + game.deaths }); // t = 實際到達時間（使用者選 A：比賽中照誰先到，完賽表才揭曉獎金）；只留一位小數，跟畫面顯示一樣
   vsNoteResults(); vsPush();
 }
 // 每一幀：送姿勢、簽到、開門
@@ -4221,7 +4230,7 @@ function vsFrame() {
 }
 function vsOpenGate() {
   if (game.tutGate) { game.ground.destroyFixture(game.tutGate); game.tutGate = null; }
-  game.gateOpenAt = game.t; game.vsHold = false; game.started = true; game.time = 0; VS.openAt = game.t;
+  game.gateOpenAt = game.t; game.vsHold = false; game.started = true; game.time = 0; VS.openAt = game.t; VS.pen = 0;
   talk([['主播', '開門了！衝！'], ['賽評', '今天大家都想準時下班']], 3, 2);
 }
 // 名字 → 顏色（每個人固定一種，鬼影名牌用）
@@ -4232,8 +4241,9 @@ const ghostCv = document.createElement('canvas');
 function vsDrawGhosts() {
   if (VS.st !== 'ok') return;
   const list = [];
-  for (const uid in VS.ghosts) { const p = VS.players[uid]; if (uid === VS.uid || !p) continue; const parts = vsGhostParts(VS.ghosts[uid]); if (parts) list.push({ uid, p, parts, gh: VS.ghosts[uid] }); }
-  if (!list.length) return;
+  const inRace = !game.vsHold && VS.raceId; // 比賽中只畫同一場的人（等候區的人會顯示成「落後 141 m」，看了會誤會）
+  for (const uid in VS.ghosts) { const p = VS.players[uid]; if (uid === VS.uid || !p || (inRace && !VS.names[uid])) continue; const parts = vsGhostParts(VS.ghosts[uid]); if (parts) list.push({ uid, p, parts, gh: VS.ghosts[uid] }); }
+  if (!list.length || !cv.width || !cv.height) return; // 畫面大小是 0 的瞬間（轉方向、分頁剛切回來）不要畫，不然 drawImage 會出錯
   if (ghostCv.width !== cv.width || ghostCv.height !== cv.height) { ghostCv.width = cv.width; ghostCv.height = cv.height; }
   const main = ctx, sv = { skin, ropes: game.ropes, dk: game.deathKind, pv: game.previewing };
   ctx = ghostCv.getContext('2d'); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, ghostCv.width, ghostCv.height); ctx.setTransform(dpr * uiK, 0, 0, dpr * uiK, 0, 0);
@@ -4396,7 +4406,7 @@ function vsDrawLobby() {
 }
 // 倒數 3、2、1 →「開門！」
 function vsDrawCountdown() {
-  if (!VS.startLocal) return;
+  if (!VS.startLocal || game.state === 'finish') return;
   const left = (VS.startLocal - Date.now()) / 1000, cx = ROW_W + (W - ROW_W) / 2, cy = HEAD_H + (H - HEAD_H) * 0.42;
   if (game.vsHold && left > 0) {
     const n = Math.ceil(Math.min(left, 3)), k = left - Math.floor(left), s = Math.round(clamp(H * 0.22, 56, 120) * (1 + 0.25 * k));
@@ -4408,54 +4418,92 @@ function vsDrawCountdown() {
 }
 // 完賽：今日加班排行（別人還在跑會即時更新）
 function vsDrawResult() {
+  // 使用者選 A：比賽中照「誰先到」（業績進度只顯示到達時間），完賽表才揭曉獎金：到達時間 − 獎金 = 成績，照成績重新排名（名次逆轉最好笑）
   const r = game.result, ps = VS.players, me = VS.uid;
   vsNoteResults();
   const all = Object.keys(VS.names).map(u => {
     const p = ps[u], res = VS.res[u];
-    if (res) return { u, k: 0, v: res.t, t: fmt(res.t), f: res.f };
-    if (p && p.r === VS.raceId && p.st === 'run') return { u, k: 1, v: -(p.x || 0), t: '—', note: p.a ? '掛機中 💤' : '還在 ' + Math.max(0, Math.round(p.x || 0)) + ' m' };
-    return { u, k: 2, v: 0, t: '—', note: p ? '中途離開' : '離線' };
-  }).sort((a, b) => a.k - b.k || a.v - b.v);
+    if (res) { const b = res.b || 0; return { u, k: 0, t: res.t, b, fin: Math.max(0, Math.round((res.t - b) * 10) / 10), notes: [] }; }
+    if (p && p.r === VS.raceId && p.st === 'run') return { u, k: 1, x: p.x || 0, notes: [p.a ? '掛機中 💤' : '還在 ' + Math.max(0, Math.round(p.x || 0)) + ' m'] };
+    return { u, k: 2, x: 0, notes: [p ? '中途離開' : '離線'] };
+  });
   const done = all.filter(a => a.k === 0), allIn = all.every(a => a.k !== 1);
-  if (done.length && all.length > 1) done[0].note = '最早下班';
-  if (allIn && done.length > 1) done[done.length - 1].note = '最後一個走，記得關燈';
+  const byArr = done.slice().sort((a, b) => a.t - b.t); byArr.forEach((a, i) => { a.arr = i + 1; });
+  done.sort((a, b) => a.fin - b.fin || a.t - b.t); done.forEach((a, i) => { a.rank = i + 1; });
+  if (all.length > 1 && byArr.length) byArr[0].notes.push('最早下班');
+  if (allIn && byArr.length > 1) byArr[byArr.length - 1].notes.push('最後一個走，記得關燈');
+  done.forEach(a => { if (a.rank < a.arr) a.notes.unshift('靠獎金逆轉！'); else if (a.rank > a.arr) a.notes.unshift('被紅包超車'); });
+  const list = [...done, ...all.filter(a => a.k === 1).sort((a, b) => b.x - a.x), ...all.filter(a => a.k === 2)];
+  list.forEach(a => { a.note = a.notes.join('・'); a.arrS = a.k === 0 ? fmt(a.t) : '—'; a.bonS = a.k === 0 ? (a.b ? '−' + a.b : '—') : ''; a.finS = a.k === 0 ? fmt(a.fin) : '—'; });
   let fx1 = ROW_W + 8, fx2 = W - 8;
   if (IS_TOUCH && !document.body.classList.contains('padoff')) { const cr = cv.getBoundingClientRect(); document.querySelectorAll('[data-touch]').forEach(b => { const q = b.getBoundingClientRect(); if (!q.width || q.top < cr.top + 60 || q.top > cr.bottom - 4) return; const l = (q.left - cr.left) / uiK, rr = (q.right - cr.left) / uiK; if (l + rr < W) fx1 = Math.max(fx1, rr + 6); else fx2 = Math.min(fx2, l - 6); }); }
-  const availW = fx2 - fx1, bw = Math.min(440, availW), rf = bw < 320 ? 12 : 13, f = rf + 'px ' + FONT, fb = 'bold ' + rf + 'px ' + FONT, fs = (rf - 1) + 'px ' + FONT, lh = rf + 5, rh = rf + 9, hh = rf + 12;
-  const nm = a => VS.names[a.u] + (a.u === me ? '（你）' : '');
-  // 欄寬照內容量：放得下就一行一筆（名次｜暱稱｜時間｜備註），放不下備註就換到暱稱下面，暱稱太長折行（不截成「…」）
-  ctx.font = fb; const nameW = Math.max(...all.map(a => ctx.measureText(nm(a)).width)), timeW = ctx.measureText('00:00.0').width;
-  ctx.font = f; const noteW = Math.max(0, ...all.map(a => a.note ? ctx.measureText(a.note).width : 0));
-  const c1 = bx0 => bx0 + 10, c2 = bx0 => bx0 + 40, one = 40 + nameW + 14 + timeW + 14 + noteW + 10 <= bw;
-  const nameMax = one ? nameW + 2 : bw - 40 - timeW - 22;
-  const items = all.map(a => { const nl = wrapText(nm(a), nameMax, a.u === me ? fb : f); const h = Math.max(rh, nl.length * lh + 6) + (!one && a.note ? lh : 0); return { a, nl, h }; });
-  const mine = '你：' + fmt(r.t) + (r.bonus ? '（獎金 −' + r.bonus + ' 秒）' : '') + '・績效 ' + (r.grade || '—') + ' 等';
-  const ml = wrapText(mine, bw - 20, f), room = H - HEAD_H - 70 - hh - rh - ml.length * rh;
-  let used = 0, n = 0; for (const it of items) { if (used + it.h > room && n >= 3) break; used += it.h; n++; }
-  const rows = items.slice(0, n), more = all.length - n, bh = hh + rh + used + (more ? rh : 0) + ml.length * rh + 10;
+  const availW = fx2 - fx1, bw = Math.min(540, availW), nm = a => VS.names[a.u] + (a.u === me ? '（你）' : '');
+  const mr = VS.res[me], mineSeg = ['你：到達 ' + fmt(mr ? mr.t : r.raw), ...(r.bonus ? ['・獎金 −' + r.bonus + ' 秒', ' → ' + fmt(mr ? Math.max(0, mr.t - (mr.b || 0)) : r.t)] : []), '・績效 ' + (r.grade || '—') + ' 等'];
+  const wrapSeg = (segs, maxW2, font) => { ctx.font = font; const out = []; let cur = ''; for (const sg of segs) { if (cur && ctx.measureText(cur + sg).width > maxW2) { out.push(cur); cur = sg.replace(/^[・ ]+/, ''); } else cur += sg; } if (cur) out.push(cur); return out; }; // 一段一段換行（「−15 秒」不會被拆開）
+  const availH = H - HEAD_H - 16 - 44; // 下面要留位置給「回門口等下一場」按鈕（不然會被擠到畫面外）
+  // 放得下就一行一筆（名次｜暱稱｜到達｜獎金｜成績｜備註）；放不下就兩行（上：暱稱、成績；下：到達、獎金、備註）
+  // 還是放不下就縮字 → 只列前幾名＋自己（中間寫「還有 N 人」）→ 最後才拿掉「你：」那行（不截成「…」）
+  let L;
+  for (const rf of [bw < 320 ? 12 : 13, 11, 10]) {
+    const f = rf + 'px ' + FONT, fb = 'bold ' + rf + 'px ' + FONT, fs = (rf - 1) + 'px ' + FONT, lh = rf + 5, rh = rf + 9, hh = rf + 12;
+    ctx.font = fb; const nameW = Math.max(...list.map(a => ctx.measureText(nm(a)).width)), timeW = ctx.measureText('00:00.0').width;
+    ctx.font = f; const bonW = Math.max(ctx.measureText('獎金').width, ...list.map(a => ctx.measureText(a.bonS).width)), noteW = Math.max(0, ...list.map(a => a.note ? ctx.measureText(a.note).width : 0));
+    const one = 40 + nameW + 14 + timeW + 12 + bonW + 12 + timeW + 14 + noteW + 10 <= bw;
+    const nameMax = one ? nameW + 2 : bw - 40 - timeW - 22;
+    const items = list.map(a => {
+      const nl = wrapText(nm(a), nameMax, a.u === me ? fb : f);
+      const dl = one ? [] : wrapText([a.k === 0 ? '到達 ' + a.arrS + (a.b ? '・獎金 −' + a.b : '') : '', a.note].filter(Boolean).join('・'), bw - 50, fs);
+      return { a, nl, dl, h: Math.max(rh, nl.length * lh + 6) + dl.length * lh };
+    });
+    const ml = wrapSeg(mineSeg, bw - 20, f), fixed = hh + rh + 10;
+    for (const withMine of [true, false]) {
+      const room = availH - fixed - (withMine ? ml.length * rh : 0);
+      let used = 0, rows = [];
+      for (const it of items) { if (used + it.h > room) break; rows.push(it); used += it.h; }
+      if (rows.length < items.length) { // 放不下全部：前幾名 ＋「還有 N 人」＋自己
+        const meIt = items.find(it => it.a.u === me);
+        while (rows.length && used + rh + (meIt && !rows.includes(meIt) ? meIt.h : 0) > room) used -= rows.pop().h;
+        if (meIt && !rows.includes(meIt)) { rows.push({ more: items.length - rows.length - 1 }, meIt); used += rh + meIt.h; } else { rows.push({ more: items.length - rows.length }); used += rh; }
+      }
+      const C2 = { rf, f, fb, fs, lh, rh, hh, nameW, timeW, bonW, noteW, one, rows, ml: withMine ? ml : [], bh: fixed + used + (withMine ? ml.length * rh : 0) };
+      // 挑「看得到最多人」的版面；一樣多就留「你：」那行、字大一點的
+      C2.score = (used <= room ? 1000 : 0) + rows.filter(it => it.a).length * 10 + (withMine ? 2 : 0) + rf * 0.01;
+      if (!L || C2.score > L.score) L = C2;
+    }
+  }
+  const { rf, f, fb, fs, lh, rh, hh, nameW, timeW, bonW, noteW, one, rows, ml, bh } = L;
   const bx = fx1 + (availW - bw) / 2, by = HEAD_H + 8 + clamp((H - HEAD_H - 58 - bh) / 3, 0, 80);
   game.resultRect = { x: bx, y: by, w: bw, h: bh };
   placeCopyBtn();
   ctx.fillStyle = '#fff'; ctx.fillRect(bx, by, bw, bh); ctx.strokeStyle = C.green; ctx.lineWidth = 2; ctx.strokeRect(bx, by, bw, bh);
   ctx.fillStyle = C.green; ctx.fillRect(bx, by, bw, hh); txt('今日加班排行', bx + 10, by + hh / 2, 'bold ' + (rf + 1) + 'px ' + FONT, '#fff', 'left');
-  const tX = one ? bx + 40 + nameW + 14 + timeW : bx + bw - 10, nX = tX + 14;
+  { // 右上角：還有人在跑 → 「● 即時更新中」（點在閃），全部跑完 →「全員下班 ✔」（使用者：完賽表要像自動刷新的彈窗）
+    const live = all.some(a => a.k === 1), lt = all.length < 2 ? '' : live ? '即時更新中' : '全員下班 ✔', lf = (rf - 1) + 'px ' + FONT;
+    if (lt) { txt(lt, bx + bw - 10, by + hh / 2, lf, '#fff', 'right'); if (live && Math.floor(game.t * 2) % 2 === 0) { ctx.font = lf; ctx.fillStyle = '#9FE0B0'; ctx.beginPath(); ctx.arc(bx + bw - 16 - ctx.measureText(lt).width, by + hh / 2, 4, 0, 7); ctx.fill(); } }
+  }
+  const c1 = bx + 10, c2 = bx + 40;
+  const aX = c2 + nameW + 14 + timeW, bX = aX + 12 + bonW, fX = one ? bX + 12 + timeW : bx + bw - 10, nX = fX + 14; // 右對齊的位置：到達、獎金、成績
   let y = by + hh; ctx.fillStyle = '#F2F2F2'; ctx.fillRect(bx + 1, y, bw - 2, rh);
-  txt('名次', c1(bx), y + rh / 2, fs, '#666', 'left'); txt('暱稱', c2(bx), y + rh / 2, fs, '#666', 'left'); txt('時間', tX, y + rh / 2, fs, '#666', 'right'); if (one && noteW) txt('備註', nX, y + rh / 2, fs, '#666', 'left'); y += rh;
-  let rank = 0;
-  rows.forEach(({ a, nl, h }) => {
+  txt('名次', c1, y + rh / 2, fs, '#666', 'left'); txt('暱稱', c2, y + rh / 2, fs, '#666', 'left'); txt('成績', fX, y + rh / 2, fs, '#666', 'right');
+  if (one) { txt('到達', aX, y + rh / 2, fs, '#666', 'right'); txt('獎金', bX, y + rh / 2, fs, '#666', 'right'); if (noteW) txt('備註', nX, y + rh / 2, fs, '#666', 'left'); }
+  y += rh;
+  rows.forEach(({ a, nl, dl, h, more }) => {
+    if (!a) { txt('… 還有 ' + more + ' 人', c2, y + rh / 2, f, '#888', 'left'); y += rh; return; }
     const isMe = a.u === me, top = y + 3 + lh / 2;
     if (isMe) { ctx.fillStyle = '#E2EFDA'; ctx.fillRect(bx + 1, y, bw - 2, h); }
-    txt(a.k === 0 ? String(++rank) : '—', c1(bx) + 8, top, fb, '#666');
-    nl.forEach((l, j) => txt(l, c2(bx), top + j * lh, isMe ? fb : f, isMe ? C.green : vsColor(a.u), 'left'));
-    txt(a.t, tX, top, f, '#222', 'right');
-    const nc = a.note === '最早下班' ? '#C55A11' : '#595959';
-    if (a.note) { if (one) txt(a.note, nX, top, f, nc, 'left'); else txt(a.note, c2(bx), top + nl.length * lh, fs, nc, 'left'); }
+    const fl = !isMe && VS.resAt[a.u] != null ? 1 - (game.t - VS.resAt[a.u]) / 2 : 0; // 剛跑完的人：那一列黃色閃一下（2 秒淡掉）
+    if (fl > 0) { ctx.fillStyle = 'rgba(255,230,120,' + (0.85 * fl).toFixed(2) + ')'; ctx.fillRect(bx + 1, y, bw - 2, h); }
+    txt(a.k === 0 ? String(a.rank) : '—', c1 + 8, top, fb, '#666');
+    nl.forEach((l, j) => txt(l, c2, top + j * lh, isMe ? fb : f, isMe ? C.green : vsColor(a.u), 'left'));
+    txt(a.finS, fX, top, fb, '#222', 'right');
+    const nc = /逆轉/.test(a.note) ? '#C00000' : /最早下班/.test(a.note) ? '#C55A11' : '#595959';
+    if (one) { txt(a.arrS, aX, top, f, '#595959', 'right'); txt(a.bonS, bX, top, f, a.b ? '#C00000' : '#999', 'right'); if (a.note) txt(a.note, nX, top, f, nc, 'left'); }
+    else dl.forEach((l, j) => txt(l, c2, top + (nl.length + j) * lh, fs, nc, 'left'));
     y += h; ctx.strokeStyle = '#E6E6E6'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(bx, y + 0.5); ctx.lineTo(bx + bw, y + 0.5); ctx.stroke();
   });
-  if (more) { txt('還有 ' + more + ' 人', c2(bx), y + rh / 2, f, '#888', 'left'); y += rh; }
   y += 5; ml.forEach(l => { txt(l, bx + 10, y + rh / 2, f, '#222', 'left'); y += rh; });
 }
-window.__game = { VS, vsFrame,  uiK: () => uiK, finish, nextReward, renderLog, renderSkins, renderAchievements, selectSkin, checkRHold, pressKey, releaseKey, setSkin: id => { skin = id; }, setHeadVis: v => { HEAD_VIS = v; }, render: () => render(), occ: () => ({ topOcc, mustOcc, tutKeyOcc }), w2s: (x, y) => [sx(x), sy(y), ppm], game, keys, contacts, loadMode, spawn, spawnAt, TUNE, sim, LEVEL, stats, achieved, award, die, copyResult, draw: () => { updateCamera(1); render(); updateHud(); } };
+window.__game = { VS, vsFrame, vsTest: { setSt: (st, ex) => vsSetSt(st, ex), check: () => vsCheckStart(), gotRace: r => vsGotRace(r) },  uiK: () => uiK, finish, nextReward, renderLog, renderSkins, renderAchievements, selectSkin, checkRHold, pressKey, releaseKey, setSkin: id => { skin = id; }, setHeadVis: v => { HEAD_VIS = v; }, render: () => render(), occ: () => ({ topOcc, mustOcc, tutKeyOcc }), w2s: (x, y) => [sx(x), sy(y), ppm], game, keys, contacts, loadMode, spawn, spawnAt, TUNE, sim, LEVEL, stats, achieved, award, die, copyResult, draw: () => { updateCamera(1); render(); updateHud(); } };
 })();
 
 </script>
